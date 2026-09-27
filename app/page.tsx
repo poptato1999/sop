@@ -303,17 +303,80 @@ async function exportSopAsPdf(doc: SopDocument, detail: SopDetail) {
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
     const exportElement = host.querySelector<HTMLElement>('.page');
     if (!exportElement) throw new Error('PDF 내용을 찾을 수 없습니다.');
-    const { default: html2pdf } = await import('html2pdf.js');
-    await html2pdf().set({
-      margin: [8, 8, 8, 8],
-      filename: `${doc.id}_${doc.title.replace(/[\\/:*?"<>|]/g, '_')}.pdf`,
-      image: { type: 'jpeg', quality: 0.96 },
-      html2canvas: { scale: 1.6, useCORS: true, backgroundColor: '#ffffff' },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    }).from(exportElement).save();
+    const width = 980;
+    const height = Math.ceil(exportElement.scrollHeight);
+    const exportCss = parsed.head.querySelector('style')?.textContent ?? '';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml"><style>${exportCss}</style>${exportElement.outerHTML}</div></foreignObject></svg>`;
+    const svgUrl = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
+    const image = new Image();
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error('SOP 화면을 PDF 이미지로 변환할 수 없습니다.'));
+      image.src = svgUrl;
+    });
+    URL.revokeObjectURL(svgUrl);
+    const scale = 1.5;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('PDF 캔버스를 만들 수 없습니다.');
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const jpeg = await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('PDF 이미지를 저장할 수 없습니다.')), 'image/jpeg', 0.94));
+    const pdf = createImagePdf(new Uint8Array(await jpeg.arrayBuffer()), canvas.width, canvas.height);
+    const pdfUrl = URL.createObjectURL(pdf);
+    const anchor = document.createElement('a');
+    anchor.href = pdfUrl;
+    anchor.download = `${doc.id}_${doc.title.replace(/[\\/:*?"<>|]/g, '_')}.pdf`;
+    anchor.target = '_blank';
+    anchor.rel = 'noopener';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 10000);
   } finally {
     host.remove();
   }
+}
+
+function createImagePdf(jpeg: Uint8Array, imageWidth: number, imageHeight: number) {
+  const encoder = new TextEncoder();
+  const chunks: Uint8Array[] = [];
+  const offsets: number[] = [0];
+  let byteLength = 0;
+  const push = (chunk: string | Uint8Array) => {
+    const bytes = typeof chunk === 'string' ? encoder.encode(chunk) : chunk;
+    chunks.push(bytes);
+    byteLength += bytes.length;
+  };
+  const startObject = (number: number) => { offsets[number] = byteLength; push(`${number} 0 obj\n`); };
+  const pageWidth = 595.28;
+  const pageHeight = 841.89;
+  const margin = 24;
+  const contentWidth = pageWidth - margin * 2;
+  const contentHeight = pageHeight - margin * 2;
+  const renderedHeight = imageHeight * contentWidth / imageWidth;
+  const pageCount = Math.max(1, Math.ceil(renderedHeight / contentHeight));
+  const objectCount = 3 + pageCount * 2;
+  const pageObjects = Array.from({ length: pageCount }, (_, index) => 4 + index * 2);
+  push('%PDF-1.4\n%SOP-Central\n');
+  startObject(1); push('<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+  startObject(2); push(`<< /Type /Pages /Count ${pageCount} /Kids [${pageObjects.map((object) => `${object} 0 R`).join(' ')}] >>\nendobj\n`);
+  startObject(3); push(`<< /Type /XObject /Subtype /Image /Width ${imageWidth} /Height ${imageHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`); push(jpeg); push('\nendstream\nendobj\n');
+  pageObjects.forEach((pageObject, index) => {
+    const contentObject = pageObject + 1;
+    const imageY = pageHeight - margin - renderedHeight + index * contentHeight;
+    const commands = `q\n${margin} ${margin} ${contentWidth} ${contentHeight} re W n\n${contentWidth} 0 0 ${renderedHeight} ${margin} ${imageY} cm\n/Im0 Do\nQ\n`;
+    startObject(pageObject); push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /XObject << /Im0 3 0 R >> >> /Contents ${contentObject} 0 R >>\nendobj\n`);
+    startObject(contentObject); push(`<< /Length ${encoder.encode(commands).length} >>\nstream\n${commands}endstream\nendobj\n`);
+  });
+  const xrefOffset = byteLength;
+  push(`xref\n0 ${objectCount + 1}\n0000000000 65535 f \n`);
+  for (let index = 1; index <= objectCount; index += 1) push(`${String(offsets[index]).padStart(10, '0')} 00000 n \n`);
+  push(`trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
+  return new Blob(chunks, { type: 'application/pdf' });
 }
 
 function getDivisionName(doc: SopDocument, detail?: SopDetail) {
