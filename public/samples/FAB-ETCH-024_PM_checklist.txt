@@ -1,0 +1,17 @@
+FAB-ETCH-024 Dry Etcher Chamber PM 체크리스트
+
+문서 버전: v4.2
+적용 대상: Etch 공정기술팀 / Dry Etcher 장비군
+
+[ ] 잔류 Lot 및 장비 상태 확인
+[ ] Maintenance Mode 전환
+[ ] Chamber 온도 및 RF 전원 안전 기준 확인
+[ ] Chamber 분해 및 부품 상태 기록
+[ ] 지정 Chemical과 Tool을 이용한 세정
+[ ] 교체 대상 부품 판정 및 기록
+[ ] 조립 완료 후 Leak Check
+[ ] Seasoning 결과 확인
+[ ] 담당 엔지니어 승인
+[ ] 생산 Mode 전환
+
+주의: 실제 작업 시 최신 승인본의 안전 기준과 현장 체크리스트를 우선 적용합니다.

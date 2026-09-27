@@ -19,6 +19,8 @@ import {
   Link2,
   Plus,
   Menu,
+  Download,
+  Paperclip,
   RefreshCw,
   Search,
   Save,
@@ -60,6 +62,15 @@ type SopDetail = {
   approver: string;
   related: string[];
   revision: string;
+  attachments?: AttachmentMeta[];
+};
+
+type AttachmentMeta = {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  url?: string;
 };
 
 type CreatedSop = { doc: SopDocument; detail: SopDetail };
@@ -103,6 +114,7 @@ const sopDetails: Record<string, SopDetail> = {
     steps: ['설비 상태와 Lot 잔류 여부를 확인하고 장비를 Maintenance Mode로 전환한다.', 'Chamber 온도와 RF 전원이 안전 기준에 도달했는지 확인한다.', '표준 체크리스트 순서에 따라 Chamber를 분해하고 부품 상태를 기록한다.', '지정 Chemical과 Tool을 사용하여 세정 후 교체 대상 부품을 판정한다.', '조립·Leak Check·Seasoning 완료 후 엔지니어 승인을 받아 생산 전환한다.'],
     author: '김서준 · Etch 공정기술팀', reviewer: '박지훈 · 설비기술팀', approver: '이현우 · 제조부문장',
     related: ['EHS-CHEM-003 Chemical 취급 안전기준', 'FAB-ETCH-009 Chamber Parts 교체 기준'], revision: 'v4.2 · PM 후 Seasoning 확인 기준 보완',
+    attachments: [{ id: 'sample-etch-checklist', name: 'FAB-ETCH-024_PM_체크리스트.txt', type: 'text/plain', size: 458, url: '/samples/FAB-ETCH-024_PM_checklist.txt' }],
   },
   'QMS-INC-011': {
     organization: '반도체부문 전체',
@@ -137,6 +149,63 @@ const sopDetails: Record<string, SopDetail> = {
     related: ['FAC-UPW-002 UPW 품질 관리기준', 'QMS-INC-011 공정 이상 초기 대응'], revision: 'v1.9 · TOC 재측정 시간 명확화',
   },
 };
+
+const attachmentDatabase = 'sop-central-files';
+const attachmentStore = 'attachments';
+
+function openAttachmentDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = window.indexedDB.open(attachmentDatabase, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(attachmentStore)) {
+        request.result.createObjectStore(attachmentStore, { keyPath: 'id' });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function saveAttachmentFile(file: File): Promise<AttachmentMeta> {
+  const id = `FILE-${Date.now()}-${crypto.randomUUID()}`;
+  const database = await openAttachmentDb();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction(attachmentStore, 'readwrite');
+    transaction.objectStore(attachmentStore).put({ id, blob: file });
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+  database.close();
+  return { id, name: file.name, type: file.type || 'application/octet-stream', size: file.size };
+}
+
+async function downloadAttachment(attachment: AttachmentMeta) {
+  let href = attachment.url;
+  if (!href) {
+    const database = await openAttachmentDb();
+    const stored = await new Promise<{ id: string; blob: Blob } | undefined>((resolve, reject) => {
+      const request = database.transaction(attachmentStore, 'readonly').objectStore(attachmentStore).get(attachment.id);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    database.close();
+    if (!stored) throw new Error('첨부 파일을 찾을 수 없습니다.');
+    href = URL.createObjectURL(stored.blob);
+  }
+  const anchor = document.createElement('a');
+  anchor.href = href;
+  anchor.download = attachment.name;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  if (!attachment.url) setTimeout(() => URL.revokeObjectURL(href), 1000);
+}
+
+function formatFileSize(size: number) {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default function Home() {
   const [activeView, setActiveView] = useState('library');
@@ -401,13 +470,15 @@ function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose:
   const [owner, setOwner] = useState('한수민');
   const [reviewer, setReviewer] = useState('');
   const [approver, setApprover] = useState('');
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   if (!open) return null;
 
   const updateStep = (index: number, value: string) => setSteps((current) => current.map((step, stepIndex) => stepIndex === index ? value : step));
   const removeStep = (index: number) => setSteps((current) => current.length === 1 ? current : current.filter((_, stepIndex) => stepIndex !== index));
-  const save = (submitForApproval: boolean) => {
+  const save = async (submitForApproval: boolean) => {
     const cleanSteps = steps.map((step) => step.trim()).filter(Boolean);
     if (!title.trim() || !organization.trim() || !purpose.trim() || cleanSteps.length === 0) {
       setError('제목, 적용 조직, 목적과 한 개 이상의 절차를 입력해 주세요.');
@@ -415,7 +486,11 @@ function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose:
     }
     const timestamp = Date.now().toString();
     const today = new Date().toISOString().slice(0, 10).replaceAll('-', '.');
-    const record: CreatedSop = {
+    setSaving(true);
+    setError('');
+    try {
+      const savedAttachments = await Promise.all(attachments.map(saveAttachmentFile));
+      const record: CreatedSop = {
       doc: {
         id: `DRAFT-${timestamp.slice(-6)}`,
         title: title.trim(),
@@ -437,10 +512,16 @@ function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose:
         approver: approver.trim() || '승인자 미지정',
         related: [],
         revision: `v0.1 · ${submitForApproval ? '최초 작성 후 승인 요청' : '임시 저장'}`,
+        attachments: savedAttachments,
       },
     };
-    onSave(record);
-    setTitle(''); setDocumentType('작업 표준서'); setScope('S2'); setOrganization(''); setIncludesChildren(true); setPurpose(''); setSteps(['']); setReviewer(''); setApprover(''); setError('');
+      onSave(record);
+      setTitle(''); setDocumentType('작업 표준서'); setScope('S2'); setOrganization(''); setIncludesChildren(true); setPurpose(''); setSteps(['']); setReviewer(''); setApprover(''); setAttachments([]); setError('');
+    } catch {
+      setError('첨부 파일 저장 중 오류가 발생했습니다. 파일을 다시 선택해 주세요.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -480,11 +561,40 @@ function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose:
                   ))}
                 </div>
               </section>
+
+              <section>
+                <SectionTitle number="04" title="첨부 문서" />
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm font-medium text-slate-600 transition hover:border-[#35d0ba] hover:bg-[#f0fbf9] hover:text-[#147b6a]">
+                  <Paperclip className="size-4" /> 파일 선택
+                  <input
+                    type="file"
+                    multiple
+                    className="sr-only"
+                    onChange={(event) => {
+                      const selectedFiles = Array.from(event.target.files ?? []);
+                      setAttachments((current) => [...current, ...selectedFiles]);
+                      event.target.value = '';
+                    }}
+                  />
+                </label>
+                <p className="mt-2 text-[11px] leading-5 text-slate-400">PDF, Word, 한글, Excel, 이미지, ZIP 등 파일 형식 제한 없이 여러 개를 첨부할 수 있습니다.</p>
+                {attachments.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {attachments.map((file, index) => (
+                      <div key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                        <FileText className="size-4 shrink-0 text-[#168b78]" />
+                        <div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-slate-700">{file.name}</p><p className="mt-0.5 text-[10px] text-slate-400">{formatFileSize(file.size)}</p></div>
+                        <Button type="button" onClick={() => setAttachments((current) => current.filter((_, fileIndex) => fileIndex !== index))} variant="ghost" size="icon" className="size-8" aria-label={`${file.name} 첨부 삭제`}><Trash2 className="size-3.5 text-slate-400" /></Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
             </div>
 
             <div className="space-y-7">
               <section>
-                <SectionTitle number="04" title="SOP 적용 범위" />
+                <SectionTitle number="05" title="SOP 적용 범위" />
                 <div className="grid grid-cols-4 gap-2">
                   {scopeLevels.map((item) => <button key={item.level} onClick={() => setScope(item.level)} aria-pressed={scope === item.level} className={`rounded-xl border px-2 py-3 text-center transition ${scope === item.level ? 'border-[#168b78] bg-[#e8f8f5] text-[#126758] shadow-[0_0_0_2px_rgba(53,208,186,.12)]' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}><strong className="block text-sm">{item.level}</strong><span className="mt-1 block text-[10px] leading-4">{item.title.split(' ')[0]}</span></button>)}
                 </div>
@@ -492,13 +602,13 @@ function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose:
               </section>
 
               <section>
-                <SectionTitle number="05" title="적용 조직" />
+                <SectionTitle number="06" title="적용 조직" />
                 <label><span className="mb-1.5 block text-xs font-semibold text-slate-600">조직 경로 *</span><Input value={organization} onChange={(event) => setOrganization(event.target.value)} className="h-10" placeholder="예: 제조부문 > CVD 공정기술팀" /></label>
                 <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 p-3 text-xs text-slate-600"><input type="checkbox" checked={includesChildren} onChange={(event) => setIncludesChildren(event.target.checked)} className="size-4 accent-[#168b78]" /> 하위 조직까지 함께 적용</label>
               </section>
 
               <section>
-                <SectionTitle number="06" title="검토 및 승인" />
+                <SectionTitle number="07" title="검토 및 승인" />
                 <div className="space-y-3"><label><span className="mb-1.5 block text-xs font-semibold text-slate-600">검토자</span><Input value={reviewer} onChange={(event) => setReviewer(event.target.value)} placeholder="이름 또는 조직" /></label><label><span className="mb-1.5 block text-xs font-semibold text-slate-600">승인자</span><Input value={approver} onChange={(event) => setApprover(event.target.value)} placeholder="이름 또는 직책" /></label></div>
               </section>
 
@@ -509,9 +619,9 @@ function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose:
         </div>
 
         <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end md:px-7">
-          <Button variant="outline" onClick={onClose}>취소</Button>
-          <Button variant="outline" onClick={() => save(false)}><Save className="size-4" /> 임시 저장</Button>
-          <Button className="bg-[#102f3d] text-white" onClick={() => save(true)}><Send className="size-4" /> 승인 요청</Button>
+          <Button variant="outline" onClick={onClose} disabled={saving}>취소</Button>
+          <Button variant="outline" onClick={() => void save(false)} disabled={saving}><Save className="size-4" /> {saving ? '저장 중' : '임시 저장'}</Button>
+          <Button className="bg-[#102f3d] text-white" onClick={() => void save(true)} disabled={saving}><Send className="size-4" /> {saving ? '저장 중' : '승인 요청'}</Button>
         </footer>
       </section>
     </div>
@@ -522,6 +632,7 @@ function LibraryView({ items, details, onCreate }: { items: SopDocument[]; detai
   const [search, setSearch] = useState('');
   const [scopeFilter, setScopeFilter] = useState('ALL');
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [attachmentError, setAttachmentError] = useState('');
   const selected = items.find((doc) => doc.id === detailId) ?? null;
   const detail = selected ? details[selected.id] : null;
   const filtered = items.filter((doc) => {
@@ -575,7 +686,7 @@ function LibraryView({ items, details, onCreate }: { items: SopDocument[]; detai
                 <tr key={doc.id} onDoubleClick={() => setDetailId(doc.id)} className="group cursor-default select-none transition hover:bg-[#f0fbf9]">
                   <td className="px-5 py-4"><div className="flex items-center gap-3"><div className="grid size-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-400 group-hover:bg-[#dff7f2] group-hover:text-[#168b78]"><FileText className="size-4" /></div><div><p className="font-medium text-slate-800 group-hover:text-[#147b6a]">{doc.title}</p><p className="mt-1 font-mono text-[10px] text-slate-400">{doc.id}</p></div></div></td>
                   <td className="px-4 py-4"><ScopeBadge level={doc.scope} /></td><td className="px-4 py-4 text-sm text-slate-600">{doc.area}</td><td className="px-4 py-4 text-sm text-slate-600">{doc.owner}</td><td className="px-4 py-4 text-xs font-semibold text-slate-600">{doc.version}</td><td className="px-4 py-4 text-xs text-slate-500">{doc.date}</td><td className="px-4 py-4"><StatusBadge tone={doc.tone}>{doc.status}</StatusBadge></td>
-                  <td className="px-4 py-4"><Button onClick={() => setDetailId(doc.id)} variant="ghost" size="sm" className="text-[#168b78]"><Eye className="size-3.5" /> 상세 보기</Button></td>
+                  <td className="px-4 py-4"><Button onClick={() => { setAttachmentError(''); setDetailId(doc.id); }} variant="ghost" size="sm" className="text-[#168b78]"><Eye className="size-3.5" /> 상세 보기</Button></td>
                 </tr>
               ))}
               {filtered.length === 0 && <tr><td colSpan={8} className="px-5 py-14 text-center text-sm text-slate-400">조건에 맞는 SOP가 없습니다.</td></tr>}
@@ -595,9 +706,34 @@ function LibraryView({ items, details, onCreate }: { items: SopDocument[]; detai
               <section className="mb-6 grid gap-3 rounded-2xl border border-[#35d0ba]/25 bg-[#f0fbf9] p-4 md:grid-cols-[1fr_auto] md:items-center"><div><div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[#147b6a]"><Building2 className="size-4" /> 적용 조직</div><p className="text-sm font-semibold text-slate-800">{detail.organization}</p><p className="mt-1 text-xs text-slate-500">{detail.includesChildren ? '해당 조직과 모든 하위 조직에 적용' : '지정된 조직·대상에만 적용'}</p></div><div className="rounded-xl bg-white px-4 py-3 text-center shadow-sm ring-1 ring-[#35d0ba]/20"><span className="block text-[10px] text-slate-400">SOP 적용 범위</span><strong className="mt-1 block text-xl text-[#147b6a]">{selected.scope}</strong></div></section>
               <section className="mb-7"><SectionTitle number="01" title="목적 및 적용 기준" /><p className="text-sm leading-7 text-slate-600">{detail.purpose}</p></section>
               <section className="mb-7"><SectionTitle number="02" title="표준 작업 절차" /><ol className="space-y-3">{detail.steps.map((step, index) => <li key={step} className="grid grid-cols-[30px_1fr] gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600"><span className="grid size-7 place-items-center rounded-lg bg-[#102f3d] text-[11px] font-bold text-white">{index + 1}</span><span>{step}</span></li>)}</ol></section>
-              <div className="grid gap-6 lg:grid-cols-2"><section><SectionTitle number="03" title="책임 및 승인" /><div className="space-y-2 rounded-xl border border-slate-200 p-4"><Responsibility label="작성" value={detail.author} /><Responsibility label="검토" value={detail.reviewer} /><Responsibility label="승인" value={detail.approver} /></div></section><section><SectionTitle number="04" title="연관 문서 및 이력" /><div className="space-y-2 rounded-xl border border-slate-200 p-4">{detail.related.map((item) => <div key={item} className="flex items-center gap-2 text-xs text-slate-600"><Link2 className="size-3.5 text-[#168b78]" /><span>{item}</span></div>)}<div className="mt-3 flex items-start gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500"><History className="mt-0.5 size-3.5 text-[#168b78]" /><span>{detail.revision}</span></div></div></section></div>
+              <section className="mb-7">
+                <SectionTitle number="03" title="첨부 문서" />
+                {detail.attachments?.length ? (
+                  <div className="overflow-hidden rounded-xl border border-slate-200">
+                    {detail.attachments.map((attachment) => (
+                      <button
+                        key={attachment.id}
+                        type="button"
+                        onClick={async () => {
+                          setAttachmentError('');
+                          try { await downloadAttachment(attachment); } catch { setAttachmentError('이 기기에 저장된 첨부 파일을 찾을 수 없습니다.'); }
+                        }}
+                        className="flex w-full items-center gap-3 border-b border-slate-100 px-4 py-3 text-left transition last:border-b-0 hover:bg-[#f0fbf9]"
+                      >
+                        <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#e1f7f3] text-[#168b78]"><FileText className="size-4" /></div>
+                        <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-slate-700">{attachment.name}</p><p className="mt-0.5 text-[10px] text-slate-400">{attachment.type || '파일'} · {formatFileSize(attachment.size)}</p></div>
+                        <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-[#168b78]"><Download className="size-3.5" /> 다운로드</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center text-xs text-slate-400">등록된 첨부 문서가 없습니다.</div>
+                )}
+                {attachmentError && <p role="alert" className="mt-2 text-xs font-medium text-[#b24f42]">{attachmentError}</p>}
+              </section>
+              <div className="grid gap-6 lg:grid-cols-2"><section><SectionTitle number="04" title="책임 및 승인" /><div className="space-y-2 rounded-xl border border-slate-200 p-4"><Responsibility label="작성" value={detail.author} /><Responsibility label="검토" value={detail.reviewer} /><Responsibility label="승인" value={detail.approver} /></div></section><section><SectionTitle number="05" title="연관 문서 및 이력" /><div className="space-y-2 rounded-xl border border-slate-200 p-4">{detail.related.map((item) => <div key={item} className="flex items-center gap-2 text-xs text-slate-600"><Link2 className="size-3.5 text-[#168b78]" /><span>{item}</span></div>)}<div className="mt-3 flex items-start gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500"><History className="mt-0.5 size-3.5 text-[#168b78]" /><span>{detail.revision}</span></div></div></section></div>
             </div>
-            <footer className="flex shrink-0 justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 md:px-6"><Button variant="outline">개정 이력</Button><Button className="bg-[#102f3d] text-white">PDF 보기</Button></footer>
+            <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 md:px-6"><span className="text-xs text-slate-400">첨부 문서 {detail.attachments?.length ?? 0}개</span><div className="flex gap-2"><Button variant="outline">개정 이력</Button><Button onClick={() => setDetailId(null)} className="bg-[#102f3d] text-white">닫기</Button></div></footer>
           </section>
         </div>
       )}
