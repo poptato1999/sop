@@ -255,6 +255,11 @@ function automationRate(value: number | boolean | undefined) {
   return value ? 100 : 0;
 }
 
+function nodeAutomationLabel(value: number | boolean | undefined) {
+  const rate = automationRate(value);
+  return rate === 0 ? '전환불가' : `${rate}%`;
+}
+
 function getAgentConversion(detail?: SopDetail) {
   if (!detail?.steps.length || !detail.stepAutomation) return null;
   const totalRate = detail.steps.reduce((sum, _, index) => sum + automationRate(detail.stepAutomation?.[index]), 0);
@@ -281,7 +286,7 @@ function buildSopExportHtml(doc: SopDocument, detail: SopDetail) {
       resources.includes('tool') ? `<div class="resource"><b>Tool</b><span>${escapeHtml(detail.stepToolInfo?.[index] || '정보 미입력')}</span></div>` : '',
       resources.includes('agent') ? `<div class="resource"><b>Agent</b><span>${escapeHtml(detail.stepAgentInfo?.[index] || '정보 미입력')}</span></div>` : '',
     ].join('');
-    return `<details class="node" open><summary><span class="node-number">${index + 1}</span><span class="node-heading"><small>${nodeTypeLabel[type]}</small><strong>${escapeHtml(step || '내용 미입력')}</strong></span><span class="rate">Agent ${automationRate(detail.stepAutomation?.[index])}%</span></summary>${routing}<div class="node-body"><div class="detail"><b>세부 수행 내용</b><p>${escapeHtml(detail.stepDetails?.[index] || '등록된 세부 수행 내용이 없습니다.')}</p></div>${resourceInfo ? `<div class="resources">${resourceInfo}</div>` : ''}<div class="detail"><b>Skill·Tool·Agent 추가 정보</b><p>${escapeHtml(detail.stepExecutionNotes?.[index] || '등록된 추가 정보가 없습니다.')}</p></div><div class="approval">${detail.humanApprovalRequired?.[index] ?? true ? '사람 확인·승인 필수' : '사람 승인 없이 진행 가능'}</div></div></details>`;
+    return `<details class="node" open><summary><span class="node-number">${index + 1}</span><span class="node-heading"><small>${nodeTypeLabel[type]}</small><strong>${escapeHtml(step || '내용 미입력')}</strong></span><span class="rate">Agent ${nodeAutomationLabel(detail.stepAutomation?.[index])}</span></summary>${routing}<div class="node-body"><div class="detail"><b>세부 수행 내용</b><p>${escapeHtml(detail.stepDetails?.[index] || '등록된 세부 수행 내용이 없습니다.')}</p></div>${resourceInfo ? `<div class="resources">${resourceInfo}</div>` : ''}<div class="detail"><b>Skill·Tool·Agent 추가 정보</b><p>${escapeHtml(detail.stepExecutionNotes?.[index] || '등록된 추가 정보가 없습니다.')}</p></div><div class="approval">${detail.humanApprovalRequired?.[index] ?? true ? '사람 확인·승인 필수' : '사람 승인 없이 진행 가능'}</div></div></details>`;
   }).join('<div class="connector">↓</div>');
   const attachments = detail.attachments?.length
     ? detail.attachments.map((attachment) => `<li>${escapeHtml(attachment.name)} <span>${escapeHtml(attachment.type || '파일')} · ${escapeHtml(formatFileSize(attachment.size))}</span></li>`).join('')
@@ -1022,10 +1027,11 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
                           </div>
                         </div>
                         <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
-                          <div className="mb-2 flex items-center justify-between"><span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600"><Sparkles className="size-3.5 text-[#168b78]" /> Agent 대행률</span><strong className="text-sm text-[#147b6a]">{stepAutomation[index] ?? 0}%</strong></div>
-                          <div className="grid grid-cols-5 gap-1">
-                            {[0, 25, 50, 75, 100].map((rate) => <button key={rate} type="button" onClick={() => setStepAutomation((current) => current.map((value, stepIndex) => stepIndex === index ? rate : value))} className={`rounded-md px-1 py-1.5 text-[10px] font-semibold transition ${stepAutomation[index] === rate ? 'bg-[#168b78] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>{rate}%</button>)}
+                          <div className="mb-2 flex items-center justify-between"><span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600"><Sparkles className="size-3.5 text-[#168b78]" /> Agent 대행률</span><strong className={`text-sm ${automationRate(stepAutomation[index]) === 0 ? 'text-[#b24f42]' : 'text-[#147b6a]'}`}>{nodeAutomationLabel(stepAutomation[index])}</strong></div>
+                          <div className="grid grid-cols-[1.4fr_repeat(4,1fr)] gap-1">
+                            {[{ rate: 0, label: '전환불가' }, { rate: 25, label: '25%' }, { rate: 50, label: '50%' }, { rate: 75, label: '75%' }, { rate: 100, label: '100%' }].map((option) => <button key={option.rate} type="button" onClick={() => setStepAutomation((current) => current.map((value, stepIndex) => stepIndex === index ? option.rate : value))} className={`rounded-md px-1 py-1.5 text-[10px] font-semibold transition ${stepAutomation[index] === option.rate ? (option.rate === 0 ? 'bg-[#b24f42] text-white' : 'bg-[#168b78] text-white') : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>{option.label}</button>)}
                           </div>
+                          <p className="mt-1.5 text-[9px] text-slate-400">전환불가는 SOP Agent 전환율 계산에 0%로 반영됩니다.</p>
                           <label className={`mt-2 flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[11px] font-medium ${humanApprovalRequired[index] ? 'bg-[#fff1dd] text-[#a45a08]' : 'bg-slate-50 text-slate-500'}`}>
                             <input type="checkbox" checked={humanApprovalRequired[index] ?? true} onChange={(event) => setHumanApprovalRequired((current) => current.map((value, stepIndex) => stepIndex === index ? event.target.checked : value))} className="size-3.5 accent-[#a45a08]" /> 사람 확인·승인 필수
                           </label>
@@ -1321,7 +1327,7 @@ function WorkflowDiagram({ steps, stepTypes, nextStepIndexes, yesBranchIndexes, 
                 <button type="button" onClick={() => setSelectedNode((current) => current === index ? null : index)} className={`mx-auto block w-full border bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${selectedNode === index ? 'ring-2 ring-[#35d0ba]' : ''} ${isDecision ? 'max-w-xl border-[#ffbd59] ring-offset-2' : type === 'end' ? 'max-w-md rounded-full border-slate-300' : 'max-w-xl rounded-xl border-slate-200'}`}>
                   <div className="flex items-start gap-3 p-3">
                     <span className={`grid size-8 shrink-0 place-items-center text-[11px] font-bold ${isDecision ? 'rotate-45 rounded-md bg-[#fff1dd] text-[#a45a08]' : type === 'end' ? 'rounded-full bg-slate-200 text-slate-600' : 'rounded-lg bg-[#e9efff] text-[#4666b0]'}`}><span className={isDecision ? '-rotate-45' : ''}>{index + 1}</span></span>
-                    <div className="min-w-0 flex-1"><div className="mb-1 flex flex-wrap items-center gap-1.5"><span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{isDecision ? '조건 분기' : type === 'end' ? '종료' : index === 0 ? '시작 작업' : '작업'}</span>{assessed && <span className="rounded-full bg-[#def7ef] px-2 py-0.5 text-[9px] font-semibold text-[#147b6a]">Agent {rate}%</span>}{assessed && (humanApprovalRequired?.[index] ?? true) && <span className="rounded-full bg-[#fff1dd] px-2 py-0.5 text-[9px] font-semibold text-[#a45a08]">사람 승인</span>}{stepResourceKinds?.[index]?.map((resource) => <span key={resource} className="rounded-full bg-[#e9efff] px-2 py-0.5 text-[9px] font-semibold text-[#4666b0]">{resource === 'skill' ? 'Skill' : resource === 'tool' ? 'Tool' : 'Agent'}</span>)}</div><p className={`${compact ? 'text-xs' : 'text-sm'} leading-5 text-slate-700`}>{step.trim() || '내용 미입력'}</p><span className="mt-1 block text-[9px] text-slate-400">클릭하여 세부정보 보기</span></div>
+                    <div className="min-w-0 flex-1"><div className="mb-1 flex flex-wrap items-center gap-1.5"><span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{isDecision ? '조건 분기' : type === 'end' ? '종료' : index === 0 ? '시작 작업' : '작업'}</span>{assessed && <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${rate === 0 ? 'bg-[#ffe9e5] text-[#b24f42]' : 'bg-[#def7ef] text-[#147b6a]'}`}>Agent {nodeAutomationLabel(rate)}</span>}{assessed && (humanApprovalRequired?.[index] ?? true) && <span className="rounded-full bg-[#fff1dd] px-2 py-0.5 text-[9px] font-semibold text-[#a45a08]">사람 승인</span>}{stepResourceKinds?.[index]?.map((resource) => <span key={resource} className="rounded-full bg-[#e9efff] px-2 py-0.5 text-[9px] font-semibold text-[#4666b0]">{resource === 'skill' ? 'Skill' : resource === 'tool' ? 'Tool' : 'Agent'}</span>)}</div><p className={`${compact ? 'text-xs' : 'text-sm'} leading-5 text-slate-700`}>{step.trim() || '내용 미입력'}</p><span className="mt-1 block text-[9px] text-slate-400">클릭하여 세부정보 보기</span></div>
                   </div>
                 </button>
                 {isDecision ? (
