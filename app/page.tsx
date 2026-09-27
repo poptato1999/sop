@@ -293,18 +293,15 @@ function buildSopExportHtml(doc: SopDocument, detail: SopDetail) {
 }
 
 async function exportSopAsPdf(doc: SopDocument, detail: SopDetail) {
-  const frame = document.createElement('iframe');
-  frame.title = 'SOP PDF 생성';
-  frame.style.cssText = 'position:fixed;left:0;top:0;width:980px;height:1200px;z-index:-1;pointer-events:none;border:0;';
-  const loaded = new Promise<void>((resolve, reject) => {
-    frame.onload = () => resolve();
-    frame.onerror = () => reject(new Error('PDF 문서를 구성할 수 없습니다.'));
-  });
-  frame.srcdoc = buildSopExportHtml(doc, detail);
-  document.body.appendChild(frame);
+  const parsed = new DOMParser().parseFromString(buildSopExportHtml(doc, detail), 'text/html');
+  const host = document.createElement('div');
+  host.setAttribute('aria-hidden', 'true');
+  host.style.cssText = 'position:fixed;left:0;top:0;width:980px;min-height:1200px;z-index:-1;pointer-events:none;background:#fff;';
+  host.innerHTML = `${parsed.head.querySelector('style')?.outerHTML ?? ''}${parsed.body.innerHTML}`;
+  document.body.appendChild(host);
   try {
-    await loaded;
-    const exportElement = frame.contentDocument?.querySelector<HTMLElement>('.page');
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    const exportElement = host.querySelector<HTMLElement>('.page');
     if (!exportElement) throw new Error('PDF 내용을 찾을 수 없습니다.');
     const { default: html2pdf } = await import('html2pdf.js');
     await html2pdf().set({
@@ -315,7 +312,7 @@ async function exportSopAsPdf(doc: SopDocument, detail: SopDetail) {
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
     }).from(exportElement).save();
   } finally {
-    frame.remove();
+    host.remove();
   }
 }
 
