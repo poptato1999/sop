@@ -212,7 +212,9 @@ export default function Home() {
   const [activeView, setActiveView] = useState('library');
   const [query, setQuery] = useState('');
   const [draftOpen, setDraftOpen] = useState(false);
+  const [editingSop, setEditingSop] = useState<CreatedSop | null>(null);
   const [createdSops, setCreatedSops] = useState<CreatedSop[]>([]);
+  const [saveNotice, setSaveNotice] = useState<{ title: string; description: string } | null>(null);
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem('sop-central-drafts');
@@ -223,12 +225,23 @@ export default function Home() {
   }, []);
   const allDocuments = [...createdSops.map((item) => item.doc), ...documents];
   const allDetails = { ...sopDetails, ...Object.fromEntries(createdSops.map((item) => [item.doc.id, item.detail])) };
-  const handleSaveSop = (record: CreatedSop) => {
-    const next = [record, ...createdSops];
-    setCreatedSops(next);
-    try { window.localStorage.setItem('sop-central-drafts', JSON.stringify(next)); } catch { /* no-op */ }
+  const openNewSop = () => { setEditingSop(null); setDraftOpen(true); };
+  const handleSaveSop = (record: CreatedSop, submitted: boolean) => {
+    setCreatedSops((current) => {
+      const next = current.some((item) => item.doc.id === record.doc.id)
+        ? current.map((item) => item.doc.id === record.doc.id ? record : item)
+        : [record, ...current];
+      try { window.localStorage.setItem('sop-central-drafts', JSON.stringify(next)); } catch { /* no-op */ }
+      return next;
+    });
     setDraftOpen(false);
+    setEditingSop(null);
     setActiveView('library');
+    setSaveNotice({
+      title: submitted ? '승인 요청이 등록되었습니다.' : '임시 저장되었습니다.',
+      description: submitted ? `${record.doc.id} 문서가 검토·승인 대기 상태로 등록되었습니다.` : `${record.doc.id} 문서를 나중에 이어서 작성할 수 있도록 보관했습니다.`,
+    });
+    window.setTimeout(() => setSaveNotice(null), 4500);
   };
   const filteredDocuments = useMemo(() => {
     const keyword = query.trim().toLowerCase();
@@ -311,9 +324,9 @@ export default function Home() {
         </header>
 
         {activeView === 'scope' ? (
-          <ScopeManagement onCreate={() => setDraftOpen(true)} />
+          <ScopeManagement onCreate={openNewSop} />
         ) : activeView === 'library' ? (
-          <LibraryView items={allDocuments} details={allDetails} onCreate={() => setDraftOpen(true)} />
+          <LibraryView items={allDocuments} details={allDetails} onCreate={openNewSop} onEdit={(record) => { setEditingSop(record); setDraftOpen(true); }} />
         ) : (
         <div className="mx-auto max-w-[1500px] p-5 md:p-8 lg:p-10">
           <section className="mb-7 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
@@ -325,7 +338,7 @@ export default function Home() {
               <h2 className="text-2xl font-semibold tracking-[-0.03em] md:text-3xl">안녕하세요, 한수민님</h2>
               <p className="mt-2 text-sm text-slate-500">오늘 처리할 승인 5건과 검토 기한 임박 문서 12건이 있습니다.</p>
             </div>
-            <Button onClick={() => setDraftOpen(true)} size="lg" className="h-11 self-start bg-[#102f3d] px-4 text-white hover:bg-[#174556] xl:self-auto">
+            <Button onClick={openNewSop} size="lg" className="h-11 self-start bg-[#102f3d] px-4 text-white hover:bg-[#174556] xl:self-auto">
               <FilePlus2 className="size-4" /> 새 SOP 작성
             </Button>
           </section>
@@ -455,12 +468,19 @@ export default function Home() {
         )}
       </section>
 
-      <SopAuthoringDialog open={draftOpen} onClose={() => setDraftOpen(false)} onSave={handleSaveSop} />
+      <SopAuthoringDialog open={draftOpen} initialRecord={editingSop} onClose={() => { setDraftOpen(false); setEditingSop(null); }} onSave={handleSaveSop} />
+      {saveNotice && (
+        <div className="fixed bottom-5 right-5 z-[70] flex w-[min(380px,calc(100vw-2.5rem))] items-start gap-3 rounded-2xl border border-[#35d0ba]/30 bg-white p-4 shadow-[0_16px_50px_rgba(3,30,40,.2)]" role="status">
+          <div className="grid size-9 shrink-0 place-items-center rounded-full bg-[#def7ef] text-[#147b6a]"><CheckCircle2 className="size-5" /></div>
+          <div className="min-w-0 flex-1"><p className="text-sm font-semibold text-slate-800">{saveNotice.title}</p><p className="mt-1 text-xs leading-5 text-slate-500">{saveNotice.description}</p></div>
+          <Button variant="ghost" size="icon" className="size-7 shrink-0" onClick={() => setSaveNotice(null)} aria-label="알림 닫기"><X className="size-4" /></Button>
+        </div>
+      )}
     </main>
   );
 }
 
-function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose: () => void; onSave: (record: CreatedSop) => void }) {
+function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: boolean; initialRecord: CreatedSop | null; onClose: () => void; onSave: (record: CreatedSop, submitted: boolean) => void }) {
   const [title, setTitle] = useState('');
   const [documentType, setDocumentType] = useState('작업 표준서');
   const [documentTypes, setDocumentTypes] = useState(defaultDocumentTypes);
@@ -475,6 +495,7 @@ function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose:
   const [reviewer, setReviewer] = useState('');
   const [approver, setApprover] = useState('');
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [existingAttachments, setExistingAttachments] = useState<AttachmentMeta[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -489,6 +510,26 @@ function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose:
       // Keep the default document types when browser storage is unavailable.
     }
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    if (initialRecord) {
+      setTitle(initialRecord.doc.title);
+      setDocumentType(initialRecord.doc.area);
+      setScope(initialRecord.doc.scope);
+      setOrganization(initialRecord.detail.organization === '적용 조직 미지정' ? '' : initialRecord.detail.organization);
+      setIncludesChildren(initialRecord.detail.includesChildren);
+      setPurpose(initialRecord.detail.purpose === '목적 및 적용 기준 작성 중' ? '' : initialRecord.detail.purpose);
+      setSteps(initialRecord.detail.steps.length ? initialRecord.detail.steps : ['']);
+      setOwner(initialRecord.doc.owner === '미지정' ? '' : initialRecord.doc.owner);
+      setReviewer(initialRecord.detail.reviewer === '검토자 미지정' ? '' : initialRecord.detail.reviewer);
+      setApprover(initialRecord.detail.approver === '승인자 미지정' ? '' : initialRecord.detail.approver);
+      setExistingAttachments(initialRecord.detail.attachments ?? []);
+    } else {
+      setTitle(''); setDocumentType('작업 표준서'); setScope('S2'); setOrganization(''); setIncludesChildren(true); setPurpose(''); setSteps(['']); setOwner('한수민'); setReviewer(''); setApprover(''); setExistingAttachments([]);
+    }
+    setAttachments([]); setError(''); setTypeInputOpen(false); setNewDocumentType('');
+  }, [open, initialRecord]);
 
   if (!open) return null;
 
@@ -506,8 +547,12 @@ function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose:
   };
   const save = async (submitForApproval: boolean) => {
     const cleanSteps = steps.map((step) => step.trim()).filter(Boolean);
-    if (!title.trim() || !organization.trim() || !purpose.trim() || cleanSteps.length === 0) {
-      setError('제목, 적용 조직, 목적과 한 개 이상의 절차를 입력해 주세요.');
+    if (!title.trim()) {
+      setError('임시 저장하려면 SOP 제목을 입력해 주세요.');
+      return;
+    }
+    if (submitForApproval && (!organization.trim() || !purpose.trim() || cleanSteps.length === 0 || !reviewer.trim() || !approver.trim())) {
+      setError('승인 요청에는 적용 조직, 목적, 한 개 이상의 절차, 검토자와 승인자가 모두 필요합니다.');
       return;
     }
     const timestamp = Date.now().toString();
@@ -515,10 +560,10 @@ function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose:
     setSaving(true);
     setError('');
     try {
-      const savedAttachments = await Promise.all(attachments.map(saveAttachmentFile));
+      const savedAttachments = [...existingAttachments, ...await Promise.all(attachments.map(saveAttachmentFile))];
       const record: CreatedSop = {
       doc: {
-        id: `DRAFT-${timestamp.slice(-6)}`,
+        id: initialRecord?.doc.id ?? `${submitForApproval ? 'REQ' : 'DRAFT'}-${timestamp.slice(-6)}`,
         title: title.trim(),
         area: documentType,
         scope,
@@ -529,9 +574,9 @@ function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose:
         tone: submitForApproval ? 'review' : 'draft',
       },
       detail: {
-        organization: organization.trim(),
+        organization: organization.trim() || '적용 조직 미지정',
         includesChildren,
-        purpose: purpose.trim(),
+        purpose: purpose.trim() || '목적 및 적용 기준 작성 중',
         steps: cleanSteps,
         author: `${owner.trim() || '미지정'} · 작성자`,
         reviewer: reviewer.trim() || '검토자 미지정',
@@ -541,8 +586,8 @@ function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose:
         attachments: savedAttachments,
       },
     };
-      onSave(record);
-      setTitle(''); setDocumentType('작업 표준서'); setScope('S2'); setOrganization(''); setIncludesChildren(true); setPurpose(''); setSteps(['']); setReviewer(''); setApprover(''); setAttachments([]); setError('');
+      onSave(record, submitForApproval);
+      setTitle(''); setDocumentType('작업 표준서'); setScope('S2'); setOrganization(''); setIncludesChildren(true); setPurpose(''); setSteps(['']); setReviewer(''); setApprover(''); setAttachments([]); setExistingAttachments([]); setError('');
     } catch {
       setError('첨부 파일 저장 중 오류가 발생했습니다. 파일을 다시 선택해 주세요.');
     } finally {
@@ -554,7 +599,7 @@ function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose:
     <div className="fixed inset-0 z-50 grid place-items-center bg-[#06181f]/50 p-3 backdrop-blur-sm md:p-6" role="presentation" onMouseDown={onClose}>
       <section role="dialog" aria-modal="true" aria-labelledby="authoring-title" onMouseDown={(event) => event.stopPropagation()} className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-[0_30px_90px_rgba(3,20,28,.38)]">
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 md:px-7 md:py-5">
-          <div><div className="mb-1 flex items-center gap-2 text-xs font-semibold text-[#168b78]"><FilePlus2 className="size-4" /> SOP Authoring</div><h2 id="authoring-title" className="text-xl font-semibold text-slate-900">새 SOP 작성</h2><p className="mt-1 text-xs text-slate-500">적용 범위와 절차를 정의한 후 임시 저장하거나 승인을 요청하세요.</p></div>
+          <div><div className="mb-1 flex items-center gap-2 text-xs font-semibold text-[#168b78]"><FilePlus2 className="size-4" /> SOP Authoring</div><h2 id="authoring-title" className="text-xl font-semibold text-slate-900">{initialRecord ? '임시 저장 SOP 이어서 작성' : '새 SOP 작성'}</h2><p className="mt-1 text-xs text-slate-500">제목만 입력해도 임시 저장할 수 있으며, 승인 요청 시에는 필수 항목을 모두 확인합니다.</p></div>
           <Button onClick={onClose} variant="ghost" size="icon" className="rounded-full" aria-label="작성 화면 닫기"><X className="size-5" /></Button>
         </header>
 
@@ -625,6 +670,17 @@ function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose:
                   />
                 </label>
                 <p className="mt-2 text-[11px] leading-5 text-slate-400">PDF, Word, 한글, Excel, 이미지, ZIP 등 파일 형식 제한 없이 여러 개를 첨부할 수 있습니다.</p>
+                {existingAttachments.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {existingAttachments.map((file) => (
+                      <div key={file.id} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                        <FileText className="size-4 shrink-0 text-[#168b78]" />
+                        <div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-slate-700">{file.name}</p><p className="mt-0.5 text-[10px] text-slate-400">저장된 첨부 · {formatFileSize(file.size)}</p></div>
+                        <Button type="button" onClick={() => setExistingAttachments((current) => current.filter((item) => item.id !== file.id))} variant="ghost" size="icon" className="size-8" aria-label={`${file.name} 첨부 삭제`}><Trash2 className="size-3.5 text-slate-400" /></Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {attachments.length > 0 && (
                   <div className="mt-3 space-y-2">
                     {attachments.map((file, index) => (
@@ -659,7 +715,7 @@ function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose:
                 <div className="space-y-3"><label><span className="mb-1.5 block text-xs font-semibold text-slate-600">검토자</span><Input value={reviewer} onChange={(event) => setReviewer(event.target.value)} placeholder="이름 또는 조직" /></label><label><span className="mb-1.5 block text-xs font-semibold text-slate-600">승인자</span><Input value={approver} onChange={(event) => setApprover(event.target.value)} placeholder="이름 또는 직책" /></label></div>
               </section>
 
-              <div className="rounded-2xl border border-[#35d0ba]/25 bg-[#f0fbf9] p-4 text-xs leading-5 text-slate-600"><strong className="block text-[#147b6a]">작성 결과</strong><span className="mt-1 block">저장하면 문서번호와 v0.1이 자동 생성되고 SOP 라이브러리에 표시됩니다.</span></div>
+              <div className="rounded-2xl border border-[#35d0ba]/25 bg-[#f0fbf9] p-4 text-xs leading-5 text-slate-600"><strong className="block text-[#147b6a]">저장 및 승인 흐름</strong><span className="mt-1 block">임시 저장은 초안 상태로 보관됩니다. 승인 요청은 필수 항목을 검사한 후 검토·승인 대기 상태로 등록되며, 두 경우 모두 문서번호와 v0.1이 자동 생성됩니다.</span></div>
             </div>
           </div>
           {error && <p role="alert" className="mt-5 rounded-xl bg-[#ffe9e5] px-4 py-3 text-sm font-medium text-[#b24f42]">{error}</p>}
@@ -675,7 +731,7 @@ function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose:
   );
 }
 
-function LibraryView({ items, details, onCreate }: { items: SopDocument[]; details: Record<string, SopDetail>; onCreate: () => void }) {
+function LibraryView({ items, details, onCreate, onEdit }: { items: SopDocument[]; details: Record<string, SopDetail>; onCreate: () => void; onEdit: (record: CreatedSop) => void }) {
   const [search, setSearch] = useState('');
   const [scopeFilter, setScopeFilter] = useState('ALL');
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -694,7 +750,7 @@ function LibraryView({ items, details, onCreate }: { items: SopDocument[]; detai
     <div className="mx-auto max-w-[1500px] p-5 md:p-8 lg:p-10">
       <section className="mb-6 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
         <div>
-          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[#168b78]"><FileText className="size-4" /> 승인된 SOP 정의와 적용 범위를 조회</div>
+          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[#168b78]"><FileText className="size-4" /> 초안부터 승인본까지 SOP 상태와 적용 범위를 조회</div>
           <h2 className="text-2xl font-semibold tracking-[-0.03em] md:text-3xl">SOP 라이브러리</h2>
           <p className="mt-2 text-sm text-slate-500">문서를 선택하면 최신 승인본의 절차와 책임, 조직 적용 정보를 확인할 수 있습니다.</p>
         </div>
@@ -746,7 +802,7 @@ function LibraryView({ items, details, onCreate }: { items: SopDocument[]; detai
         <div className="fixed inset-0 z-50 grid place-items-center bg-[#06181f]/45 p-3 backdrop-blur-sm md:p-6" role="presentation" onMouseDown={() => setDetailId(null)}>
           <section role="dialog" aria-modal="true" aria-labelledby="sop-detail-title" onMouseDown={(event) => event.stopPropagation()} className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-[0_30px_90px_rgba(3,20,28,.35)]">
             <header className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 p-5 md:p-6">
-              <div><div className="mb-2 flex flex-wrap items-center gap-2"><ScopeBadge level={selected.scope} /><StatusBadge tone={selected.tone}>{selected.status}</StatusBadge><span className="font-mono text-xs text-slate-400">{selected.id}</span></div><h2 id="sop-detail-title" className="text-xl font-semibold tracking-tight text-slate-900 md:text-2xl">{selected.title}</h2><p className="mt-2 text-sm text-slate-500">최신 승인본 {selected.version} · 시행일 {selected.date}</p></div>
+              <div><div className="mb-2 flex flex-wrap items-center gap-2"><ScopeBadge level={selected.scope} /><StatusBadge tone={selected.tone}>{selected.status}</StatusBadge><span className="font-mono text-xs text-slate-400">{selected.id}</span></div><h2 id="sop-detail-title" className="text-xl font-semibold tracking-tight text-slate-900 md:text-2xl">{selected.title}</h2><p className="mt-2 text-sm text-slate-500">{selected.tone === 'draft' ? '임시 저장본' : selected.tone === 'review' ? '검토·승인 진행본' : '최신 승인본'} {selected.version} · 등록일 {selected.date}</p></div>
               <Button onClick={() => setDetailId(null)} variant="ghost" size="icon" className="shrink-0 rounded-full" aria-label="상세 화면 닫기"><X className="size-5" /></Button>
             </header>
             <div className="overflow-y-auto p-5 md:p-6">
@@ -780,7 +836,7 @@ function LibraryView({ items, details, onCreate }: { items: SopDocument[]; detai
               </section>
               <div className="grid gap-6 lg:grid-cols-2"><section><SectionTitle number="04" title="책임 및 승인" /><div className="space-y-2 rounded-xl border border-slate-200 p-4"><Responsibility label="작성" value={detail.author} /><Responsibility label="검토" value={detail.reviewer} /><Responsibility label="승인" value={detail.approver} /></div></section><section><SectionTitle number="05" title="연관 문서 및 이력" /><div className="space-y-2 rounded-xl border border-slate-200 p-4">{detail.related.map((item) => <div key={item} className="flex items-center gap-2 text-xs text-slate-600"><Link2 className="size-3.5 text-[#168b78]" /><span>{item}</span></div>)}<div className="mt-3 flex items-start gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500"><History className="mt-0.5 size-3.5 text-[#168b78]" /><span>{detail.revision}</span></div></div></section></div>
             </div>
-            <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 md:px-6"><span className="text-xs text-slate-400">첨부 문서 {detail.attachments?.length ?? 0}개</span><div className="flex gap-2"><Button variant="outline">개정 이력</Button><Button onClick={() => setDetailId(null)} className="bg-[#102f3d] text-white">닫기</Button></div></footer>
+            <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 md:px-6"><span className="text-xs text-slate-400">첨부 문서 {detail.attachments?.length ?? 0}개</span><div className="flex gap-2">{selected.tone === 'draft' && <Button variant="outline" onClick={() => { setDetailId(null); onEdit({ doc: selected, detail }); }}><FileText className="size-4" /> 이어서 작성</Button>}<Button variant="outline">개정 이력</Button><Button onClick={() => setDetailId(null)} className="bg-[#102f3d] text-white">닫기</Button></div></footer>
           </section>
         </div>
       )}
