@@ -36,6 +36,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 
 type SopDocument = {
@@ -265,6 +266,21 @@ function getDivisionName(doc: SopDocument, detail?: SopDetail) {
   if (areaMap[doc.area]) return areaMap[doc.area];
   const root = detail?.organization.split('>')[0]?.trim().replace(/\s*전체$/, '');
   return root || '기타부문';
+}
+
+function getOrganizationDivisions(doc: SopDocument, detail?: SopDetail) {
+  const divisions = detail?.organization
+    .split('>')
+    .map((segment) => segment.trim().replace(/\s*전체$/, ''))
+    .filter((segment) => segment.includes('부문')) ?? [];
+  return divisions.length ? divisions : [getDivisionName(doc, detail)];
+}
+
+function getOrganizationTeams(detail?: SopDetail) {
+  return detail?.organization
+    .split('>')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.includes('팀')) ?? [];
 }
 
 export default function Home() {
@@ -1032,16 +1048,24 @@ function ApprovalView({ items, onEdit, onApprove, onDelete }: { items: CreatedSo
 function LibraryView({ items, details, editableIds, onCreate, onEdit, onApprove, onDelete }: { items: SopDocument[]; details: Record<string, SopDetail>; editableIds: string[]; onCreate: () => void; onEdit: (record: CreatedSop) => void; onApprove: (id: string) => void; onDelete: (id: string) => void }) {
   const [search, setSearch] = useState('');
   const [scopeFilter, setScopeFilter] = useState('ALL');
+  const [divisionFilter, setDivisionFilter] = useState('ALL');
+  const [teamFilter, setTeamFilter] = useState('ALL');
   const [detailId, setDetailId] = useState<string | null>(null);
   const [attachmentError, setAttachmentError] = useState('');
   const selected = items.find((doc) => doc.id === detailId) ?? null;
   const detail = selected ? details[selected.id] : null;
+  const divisionOptions = Array.from(new Set(items.flatMap((doc) => getOrganizationDivisions(doc, details[doc.id])))).sort((a, b) => a.localeCompare(b, 'ko'));
+  const teamOptions = Array.from(new Set(items
+    .filter((doc) => divisionFilter === 'ALL' || getOrganizationDivisions(doc, details[doc.id]).includes(divisionFilter))
+    .flatMap((doc) => getOrganizationTeams(details[doc.id])))).sort((a, b) => a.localeCompare(b, 'ko'));
   const filtered = items.filter((doc) => {
     const matchesScope = scopeFilter === 'ALL' || doc.scope === scopeFilter;
+    const matchesDivision = divisionFilter === 'ALL' || getOrganizationDivisions(doc, details[doc.id]).includes(divisionFilter);
+    const matchesTeam = teamFilter === 'ALL' || getOrganizationTeams(details[doc.id]).includes(teamFilter);
     const keyword = search.trim().toLowerCase();
     const itemDetail = details[doc.id];
     const matchesSearch = !keyword || [doc.id, doc.title, doc.area, itemDetail?.organization, itemDetail?.purpose].join(' ').toLowerCase().includes(keyword);
-    return matchesScope && matchesSearch;
+    return matchesScope && matchesDivision && matchesTeam && matchesSearch;
   });
 
   return (
@@ -1056,19 +1080,15 @@ function LibraryView({ items, details, editableIds, onCreate, onEdit, onApprove,
       </section>
 
       <Card className="mb-5 border-0 bg-white py-0 shadow-[0_6px_24px_rgba(23,42,54,.05)] ring-slate-200/70">
-        <CardContent className="flex flex-col gap-4 p-4 md:flex-row md:items-center">
-          <div className="relative flex-1">
+        <CardContent className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-[minmax(280px,1fr)_repeat(3,minmax(150px,190px))_auto] xl:items-end">
+          <label className="md:col-span-2 xl:col-span-1"><span className="mb-1.5 block text-[11px] font-semibold text-slate-500">통합 검색</span><div className="relative">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
             <Input value={search} onChange={(event) => setSearch(event.target.value)} className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9" placeholder="SOP 제목, 문서번호, 조직 검색" aria-label="SOP 라이브러리 검색" />
-          </div>
-          <div className="flex flex-wrap gap-2" aria-label="적용 범위 필터">
-            {['ALL', 'S1', 'S2', 'S3', 'S4'].map((scope) => (
-              <button key={scope} onClick={() => setScopeFilter(scope)} aria-pressed={scopeFilter === scope} className={`h-9 rounded-lg px-3 text-xs font-semibold transition ${scopeFilter === scope ? 'bg-[#102f3d] text-white' : 'border border-slate-200 bg-white text-slate-500 hover:bg-slate-50'}`}>
-                {scope === 'ALL' ? '전체' : scope}
-              </button>
-            ))}
-          </div>
-          <span className="text-xs text-slate-400">{filtered.length}개 문서</span>
+          </div></label>
+          <label><span className="mb-1.5 block text-[11px] font-semibold text-slate-500">부문</span><NativeSelect value={divisionFilter} onChange={(event) => { setDivisionFilter(event.target.value); setTeamFilter('ALL'); }} className="w-full"><NativeSelectOption value="ALL">전체 부문</NativeSelectOption>{divisionOptions.map((division) => <NativeSelectOption key={division} value={division}>{division}</NativeSelectOption>)}</NativeSelect></label>
+          <label><span className="mb-1.5 block text-[11px] font-semibold text-slate-500">팀</span><NativeSelect value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)} className="w-full"><NativeSelectOption value="ALL">전체 팀</NativeSelectOption>{teamOptions.map((team) => <NativeSelectOption key={team} value={team}>{team}</NativeSelectOption>)}</NativeSelect></label>
+          <label><span className="mb-1.5 block text-[11px] font-semibold text-slate-500">SOP 적용 범위</span><NativeSelect value={scopeFilter} onChange={(event) => setScopeFilter(event.target.value)} className="w-full"><NativeSelectOption value="ALL">전체 범위</NativeSelectOption>{scopeLevels.map((scope) => <NativeSelectOption key={scope.level} value={scope.level}>{scope.level} · {scope.title}</NativeSelectOption>)}</NativeSelect></label>
+          <span className="pb-2 text-xs font-medium text-slate-400">{filtered.length}개 문서</span>
         </CardContent>
       </Card>
 
