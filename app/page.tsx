@@ -10,15 +10,19 @@ import {
   ClipboardCheck,
   FileClock,
   FilePlus2,
+  FileText,
   GitBranch,
+  History,
   LayoutDashboard,
   Layers3,
+  Link2,
   Menu,
   RefreshCw,
   Search,
   Settings,
   ShieldCheck,
   Sparkles,
+  UserCheck,
   UsersRound,
 } from 'lucide-react';
 
@@ -58,8 +62,61 @@ const scopeLevels = [
   { level: 'S4', title: '공정·설비·작업 적용', description: '특정 공정, 설비군 또는 작업에 적용', example: 'PECVD 3호기 PM 작업', color: '#b24f42', background: '#ffe9e5' },
 ];
 
+const sopDetails: Record<string, {
+  organization: string;
+  includesChildren: boolean;
+  purpose: string;
+  steps: string[];
+  author: string;
+  reviewer: string;
+  approver: string;
+  related: string[];
+  revision: string;
+}> = {
+  'FAB-ETCH-024': {
+    organization: '제조부문 > Etch 공정기술팀 > Dry Etcher 장비군',
+    includesChildren: false,
+    purpose: 'Dry Etcher Chamber의 정기 PM 작업을 표준화하여 Particle 발생과 공정 편차를 예방하고, 작업자별 품질 차이를 최소화한다.',
+    steps: ['설비 상태와 Lot 잔류 여부를 확인하고 장비를 Maintenance Mode로 전환한다.', 'Chamber 온도와 RF 전원이 안전 기준에 도달했는지 확인한다.', '표준 체크리스트 순서에 따라 Chamber를 분해하고 부품 상태를 기록한다.', '지정 Chemical과 Tool을 사용하여 세정 후 교체 대상 부품을 판정한다.', '조립·Leak Check·Seasoning 완료 후 엔지니어 승인을 받아 생산 전환한다.'],
+    author: '김서준 · Etch 공정기술팀', reviewer: '박지훈 · 설비기술팀', approver: '이현우 · 제조부문장',
+    related: ['EHS-CHEM-003 Chemical 취급 안전기준', 'FAB-ETCH-009 Chamber Parts 교체 기준'], revision: 'v4.2 · PM 후 Seasoning 확인 기준 보완',
+  },
+  'QMS-INC-011': {
+    organization: '반도체부문 전체',
+    includesChildren: true,
+    purpose: '공정 이상 발생 시 초기 판단과 보고 체계를 통일하여 영향 Lot 확산을 방지하고 신속한 원인 분석을 지원한다.',
+    steps: ['이상 신호를 확인하고 관련 Lot과 장비를 즉시 Hold한다.', '품질 영향 범위와 최근 정상 시점을 확인한다.', '담당 엔지니어·품질보증·생산관리 조직에 동시에 통보한다.', '초기 분석 결과에 따라 생산 재개 또는 추가 격리를 결정한다.', '조치 결과와 재발방지 항목을 QMS에 기록한다.'],
+    author: '박예린 · 품질혁신팀', reviewer: '김태윤 · 제조기술팀', approver: '오지훈 · 반도체부문장',
+    related: ['QMS-HOLD-004 Lot Hold 관리', 'QMS-RCA-002 원인분석 기준'], revision: 'v3.0 · 전사 공통 보고시간 기준 반영',
+  },
+  'EHS-GAS-008': {
+    organization: '제조부문 전체',
+    includesChildren: true,
+    purpose: '특수가스 누출 시 인명 안전을 최우선으로 확보하고, 사고 확산을 방지하기 위한 초기 비상 대응 기준을 정의한다.',
+    steps: ['가스 경보 확인 즉시 작업을 중지하고 인근 인원을 대피시킨다.', '비상 연락망으로 방재센터와 EHS 담당자에게 신고한다.', '허가된 대응 인력만 보호구를 착용하고 현장에 접근한다.', '가스 공급 차단과 배기 상태를 확인한다.', '안전 판정 후 원인 조사와 재가동 승인을 진행한다.'],
+    author: '이도윤 · EHS팀', reviewer: '정가영 · 시설기술팀', approver: '강민석 · 제조부문장',
+    related: ['EHS-EVA-001 비상대피 기준', 'FAC-GAS-005 가스 공급 차단 절차'], revision: 'v5.1 · 야간 비상 연락망 최신화',
+  },
+  'FAB-CVD-036': {
+    organization: '제조부문 > CVD 공정기술팀',
+    includesChildren: false,
+    purpose: 'PECVD Recipe의 생성·변경·검증·배포 절차를 통제하여 승인되지 않은 조건 변경과 품질 편차를 방지한다.',
+    steps: ['변경 목적과 영향 제품을 명확히 작성한다.', 'DOE 결과와 품질 영향 평가 자료를 첨부한다.', '공정기술·품질·생산 담당자의 검토를 진행한다.', '승인 완료 후 지정 시간에 Recipe를 배포한다.', '초기 생산 Lot 결과를 확인하고 변경을 종결한다.'],
+    author: '최하린 · CVD 공정기술팀', reviewer: '윤도현 · 품질보증팀', approver: '배서윤 · 제조기술담당',
+    related: ['QMS-CHG-001 변경관리 기본정책', 'FAB-CVD-012 DOE 수행 기준'], revision: 'v2.8 · 초기 생산 Lot 판정 기준 변경',
+  },
+  'FAC-UPW-014': {
+    organization: '제조부문 > 시설기술부문',
+    includesChildren: true,
+    purpose: 'UPW 수질 이상 발생 시 공급 영향도를 신속히 판단하고 영향 공정을 보호하기 위한 조치 기준을 정의한다.',
+    steps: ['TOC·Resistivity·Particle 이상 항목을 재측정한다.', '영향 공급계통과 사용 공정을 식별한다.', '기준 이탈 수준에 따라 공급 유지 또는 차단을 결정한다.', '공정 담당자에게 영향 범위와 예상 복구 시간을 통보한다.', '정상화 확인 후 단계적으로 공급을 재개한다.'],
+    author: '정시우 · 시설기술팀', reviewer: '이수아 · 품질보증팀', approver: '문지호 · 시설기술부문장',
+    related: ['FAC-UPW-002 UPW 품질 관리기준', 'QMS-INC-011 공정 이상 초기 대응'], revision: 'v1.9 · TOC 재측정 시간 명확화',
+  },
+};
+
 export default function Home() {
-  const [activeView, setActiveView] = useState('scope');
+  const [activeView, setActiveView] = useState('library');
   const [query, setQuery] = useState('');
   const [draftOpen, setDraftOpen] = useState(false);
   const [selectedScope, setSelectedScope] = useState('S2');
@@ -125,7 +182,7 @@ export default function Home() {
             <Button variant="ghost" size="icon" className="lg:hidden" aria-label="메뉴 열기"><Menu /></Button>
             <div>
               <p className="text-[12px] font-medium text-slate-500">FAB 운영 표준 관리</p>
-              <h1 className="text-lg font-semibold tracking-tight">{activeView === 'scope' ? 'SOP 적용체계' : '운영 대시보드'}</h1>
+              <h1 className="text-lg font-semibold tracking-tight">{activeView === 'scope' ? 'SOP 적용체계' : activeView === 'library' ? 'SOP 라이브러리' : '운영 대시보드'}</h1>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -145,6 +202,8 @@ export default function Home() {
 
         {activeView === 'scope' ? (
           <ScopeManagement onCreate={() => setDraftOpen(true)} />
+        ) : activeView === 'library' ? (
+          <LibraryView onCreate={() => setDraftOpen(true)} />
         ) : (
         <div className="mx-auto max-w-[1500px] p-5 md:p-8 lg:p-10">
           <section className="mb-7 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
@@ -341,6 +400,147 @@ export default function Home() {
       )}
     </main>
   );
+}
+
+function LibraryView({ onCreate }: { onCreate: () => void }) {
+  const [search, setSearch] = useState('');
+  const [scopeFilter, setScopeFilter] = useState('ALL');
+  const [selectedId, setSelectedId] = useState(documents[0].id);
+  const selected = documents.find((doc) => doc.id === selectedId) ?? documents[0];
+  const detail = sopDetails[selected.id];
+  const filtered = documents.filter((doc) => {
+    const matchesScope = scopeFilter === 'ALL' || doc.scope === scopeFilter;
+    const keyword = search.trim().toLowerCase();
+    const itemDetail = sopDetails[doc.id];
+    const matchesSearch = !keyword || [doc.id, doc.title, doc.area, itemDetail?.organization, itemDetail?.purpose].join(' ').toLowerCase().includes(keyword);
+    return matchesScope && matchesSearch;
+  });
+
+  return (
+    <div className="mx-auto max-w-[1500px] p-5 md:p-8 lg:p-10">
+      <section className="mb-6 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
+        <div>
+          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[#168b78]"><FileText className="size-4" /> 승인된 SOP 정의와 적용 범위를 조회</div>
+          <h2 className="text-2xl font-semibold tracking-[-0.03em] md:text-3xl">SOP 라이브러리</h2>
+          <p className="mt-2 text-sm text-slate-500">문서를 선택하면 최신 승인본의 절차와 책임, 조직 적용 정보를 확인할 수 있습니다.</p>
+        </div>
+        <Button onClick={onCreate} size="lg" className="h-11 self-start bg-[#102f3d] px-4 text-white hover:bg-[#174556] xl:self-auto"><FilePlus2 className="size-4" /> 새 SOP 작성</Button>
+      </section>
+
+      <Card className="mb-5 border-0 bg-white py-0 shadow-[0_6px_24px_rgba(23,42,54,.05)] ring-slate-200/70">
+        <CardContent className="flex flex-col gap-4 p-4 md:flex-row md:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            <Input value={search} onChange={(event) => setSearch(event.target.value)} className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9" placeholder="SOP 제목, 문서번호, 조직 검색" aria-label="SOP 라이브러리 검색" />
+          </div>
+          <div className="flex flex-wrap gap-2" aria-label="적용 범위 필터">
+            {['ALL', 'S1', 'S2', 'S3', 'S4'].map((scope) => (
+              <button key={scope} onClick={() => setScopeFilter(scope)} aria-pressed={scopeFilter === scope} className={`h-9 rounded-lg px-3 text-xs font-semibold transition ${scopeFilter === scope ? 'bg-[#102f3d] text-white' : 'border border-slate-200 bg-white text-slate-500 hover:bg-slate-50'}`}>
+                {scope === 'ALL' ? '전체' : scope}
+              </button>
+            ))}
+          </div>
+          <span className="text-xs text-slate-400">{filtered.length}개 문서</span>
+        </CardContent>
+      </Card>
+
+      <div className="grid items-start gap-5 xl:grid-cols-[390px_minmax(0,1fr)]">
+        <Card className="border-0 bg-white py-0 shadow-[0_8px_30px_rgba(23,42,54,.06)] ring-slate-200/70">
+          <CardHeader className="border-b border-slate-100 p-4">
+            <CardTitle className="text-sm font-semibold">문서 목록</CardTitle>
+          </CardHeader>
+          <CardContent className="p-2">
+            <div className="space-y-1">
+              {filtered.map((doc) => (
+                <button
+                  key={doc.id}
+                  onClick={() => setSelectedId(doc.id)}
+                  aria-pressed={selectedId === doc.id}
+                  className={`w-full rounded-xl p-3.5 text-left transition ${selectedId === doc.id ? 'bg-[#e9f8f5] ring-1 ring-[#35d0ba]/40' : 'hover:bg-slate-50'}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg ${selectedId === doc.id ? 'bg-[#35d0ba] text-[#08232c]' : 'bg-slate-100 text-slate-400'}`}><FileText className="size-4" /></div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2"><span className="font-mono text-[10px] text-slate-400">{doc.id}</span><ScopeBadge level={doc.scope} /></div>
+                      <p className="mt-1 line-clamp-2 text-sm font-semibold leading-5 text-slate-800">{doc.title}</p>
+                      <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400"><span>{doc.area} · {doc.owner}</span><span>{doc.version}</span></div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+              {filtered.length === 0 && <div className="px-4 py-12 text-center text-sm text-slate-400">조건에 맞는 SOP가 없습니다.</div>}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 bg-white py-0 shadow-[0_8px_30px_rgba(23,42,54,.06)] ring-slate-200/70">
+          <CardHeader className="border-b border-slate-100 p-5 md:p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="mb-2 flex flex-wrap items-center gap-2"><ScopeBadge level={selected.scope} /><StatusBadge tone={selected.tone}>{selected.status}</StatusBadge><span className="font-mono text-xs text-slate-400">{selected.id}</span></div>
+                <CardTitle className="text-xl font-semibold tracking-tight md:text-2xl">{selected.title}</CardTitle>
+                <p className="mt-2 text-sm text-slate-500">최신 승인본 {selected.version} · 시행일 {selected.date}</p>
+              </div>
+              <div className="flex gap-2"><Button variant="outline">개정 이력</Button><Button className="bg-[#102f3d] text-white">PDF 보기</Button></div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="p-5 md:p-6">
+            <section className="mb-6 grid gap-3 rounded-2xl border border-[#35d0ba]/25 bg-[#f0fbf9] p-4 md:grid-cols-[1fr_auto] md:items-center">
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[#147b6a]"><Building2 className="size-4" /> 적용 조직</div>
+                <p className="text-sm font-semibold text-slate-800">{detail.organization}</p>
+                <p className="mt-1 text-xs text-slate-500">{detail.includesChildren ? '해당 조직과 모든 하위 조직에 적용' : '지정된 조직·대상에만 적용'}</p>
+              </div>
+              <div className="rounded-xl bg-white px-4 py-3 text-center shadow-sm ring-1 ring-[#35d0ba]/20"><span className="block text-[10px] text-slate-400">SOP 적용 범위</span><strong className="mt-1 block text-xl text-[#147b6a]">{selected.scope}</strong></div>
+            </section>
+
+            <section className="mb-7">
+              <SectionTitle number="01" title="목적 및 적용 기준" />
+              <p className="text-sm leading-7 text-slate-600">{detail.purpose}</p>
+            </section>
+
+            <section className="mb-7">
+              <SectionTitle number="02" title="표준 작업 절차" />
+              <ol className="space-y-3">
+                {detail.steps.map((step, index) => (
+                  <li key={step} className="grid grid-cols-[30px_1fr] gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
+                    <span className="grid size-7 place-items-center rounded-lg bg-[#102f3d] text-[11px] font-bold text-white">{index + 1}</span><span>{step}</span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <section>
+                <SectionTitle number="03" title="책임 및 승인" />
+                <div className="space-y-2 rounded-xl border border-slate-200 p-4">
+                  <Responsibility label="작성" value={detail.author} />
+                  <Responsibility label="검토" value={detail.reviewer} />
+                  <Responsibility label="승인" value={detail.approver} />
+                </div>
+              </section>
+              <section>
+                <SectionTitle number="04" title="연관 문서 및 이력" />
+                <div className="space-y-2 rounded-xl border border-slate-200 p-4">
+                  {detail.related.map((item) => <div key={item} className="flex items-center gap-2 text-xs text-slate-600"><Link2 className="size-3.5 text-[#168b78]" /><span>{item}</span></div>)}
+                  <div className="mt-3 flex items-start gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500"><History className="mt-0.5 size-3.5 text-[#168b78]" /><span>{detail.revision}</span></div>
+                </div>
+              </section>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function SectionTitle({ number, title }: { number: string; title: string }) {
+  return <div className="mb-3 flex items-center gap-2"><span className="font-mono text-[10px] font-bold text-[#168b78]">{number}</span><h3 className="text-sm font-semibold text-slate-800">{title}</h3></div>;
+}
+
+function Responsibility({ label, value }: { label: string; value: string }) {
+  return <div className="grid grid-cols-[44px_1fr] items-center gap-2 text-xs"><span className="flex items-center gap-1 font-semibold text-[#168b78]"><UserCheck className="size-3" />{label}</span><span className="text-slate-600">{value}</span></div>;
 }
 
 function ScopeManagement({ onCreate }: { onCreate: () => void }) {
