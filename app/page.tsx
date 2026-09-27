@@ -4,12 +4,17 @@ import { useMemo, useState } from 'react';
 import {
   Bell,
   BookOpenCheck,
+  Building2,
+  CheckCircle2,
   ChevronRight,
   ClipboardCheck,
   FileClock,
   FilePlus2,
+  GitBranch,
   LayoutDashboard,
+  Layers3,
   Menu,
+  RefreshCw,
   Search,
   Settings,
   ShieldCheck,
@@ -30,29 +35,39 @@ const stats = [
 ];
 
 const documents = [
-  { id: 'FAB-ETCH-024', title: 'Dry Etcher Chamber PM 작업 표준', area: 'Etch', owner: '김서준', version: 'v4.2', date: '2026.09.24', status: '승인 완료', tone: 'approved' },
-  { id: 'QMS-INC-011', title: '공정 이상 발생 시 초기 대응 절차', area: '품질', owner: '박예린', version: 'v3.0', date: '2026.09.23', status: '검토 중', tone: 'review' },
-  { id: 'EHS-GAS-008', title: '특수가스 누출 비상 대응 절차', area: '안전', owner: '이도윤', version: 'v5.1', date: '2026.09.21', status: '교육 필요', tone: 'training' },
-  { id: 'FAB-CVD-036', title: 'PECVD 장비 Recipe 변경 관리', area: 'CVD', owner: '최하린', version: 'v2.8', date: '2026.09.20', status: '개정 요청', tone: 'revision' },
-  { id: 'FAC-UPW-014', title: 'UPW 수질 이상 시 조치 기준', area: 'Utility', owner: '정시우', version: 'v1.9', date: '2026.09.18', status: '승인 완료', tone: 'approved' },
+  { id: 'FAB-ETCH-024', title: 'Dry Etcher Chamber PM 작업 표준', area: 'Etch', scope: 'S4', owner: '김서준', version: 'v4.2', date: '2026.09.24', status: '승인 완료', tone: 'approved' },
+  { id: 'QMS-INC-011', title: '공정 이상 발생 시 초기 대응 절차', area: '품질', scope: 'S1', owner: '박예린', version: 'v3.0', date: '2026.09.23', status: '검토 중', tone: 'review' },
+  { id: 'EHS-GAS-008', title: '특수가스 누출 비상 대응 절차', area: '안전', scope: 'S2', owner: '이도윤', version: 'v5.1', date: '2026.09.21', status: '교육 필요', tone: 'training' },
+  { id: 'FAB-CVD-036', title: 'PECVD 장비 Recipe 변경 관리', area: 'CVD', scope: 'S3', owner: '최하린', version: 'v2.8', date: '2026.09.20', status: '개정 요청', tone: 'revision' },
+  { id: 'FAC-UPW-014', title: 'UPW 수질 이상 시 조치 기준', area: 'Utility', scope: 'S2', owner: '정시우', version: 'v1.9', date: '2026.09.18', status: '승인 완료', tone: 'approved' },
 ];
 
 const nav = [
-  { label: '대시보드', icon: LayoutDashboard, active: true },
-  { label: 'SOP 라이브러리', icon: BookOpenCheck },
-  { label: '검토·승인', icon: ClipboardCheck, count: 18 },
-  { label: '교육 관리', icon: UsersRound },
-  { label: '감사·이력', icon: ShieldCheck },
+  { id: 'dashboard', label: '대시보드', icon: LayoutDashboard },
+  { id: 'scope', label: 'SOP 적용체계', icon: Layers3 },
+  { id: 'library', label: 'SOP 라이브러리', icon: BookOpenCheck },
+  { id: 'approval', label: '검토·승인', icon: ClipboardCheck, count: 18 },
+  { id: 'training', label: '교육 관리', icon: UsersRound },
+  { id: 'audit', label: '감사·이력', icon: ShieldCheck },
+];
+
+const scopeLevels = [
+  { level: 'S1', title: '최상위 부문 공통', description: '최상위 부문 전체 조직에 공통 적용', example: '반도체부문 품질 기본정책', color: '#168b78', background: '#e1f7f3' },
+  { level: 'S2', title: '하위 부문 적용', description: '특정 하위 부문과 소속 조직에 적용', example: '제조부문 공정변경 관리', color: '#4666b0', background: '#e9efff' },
+  { level: 'S3', title: '팀·단일 조직 적용', description: '특정 팀 또는 단일 운영 조직에 적용', example: 'CVD 공정기술팀 업무 절차', color: '#a45a08', background: '#fff1dd' },
+  { level: 'S4', title: '공정·설비·작업 적용', description: '특정 공정, 설비군 또는 작업에 적용', example: 'PECVD 3호기 PM 작업', color: '#b24f42', background: '#ffe9e5' },
 ];
 
 export default function Home() {
+  const [activeView, setActiveView] = useState('scope');
   const [query, setQuery] = useState('');
   const [draftOpen, setDraftOpen] = useState(false);
+  const [selectedScope, setSelectedScope] = useState('S2');
   const filteredDocuments = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     if (!keyword) return documents;
     return documents.filter((doc) =>
-      [doc.id, doc.title, doc.area, doc.owner, doc.status]
+      [doc.id, doc.title, doc.area, doc.scope, doc.owner, doc.status]
         .join(' ')
         .toLowerCase()
         .includes(keyword),
@@ -79,9 +94,10 @@ export default function Home() {
             return (
               <button
                 key={item.label}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${item.active ? 'bg-white/10 text-white shadow-inner' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+                onClick={() => setActiveView(item.id)}
+                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${activeView === item.id ? 'bg-white/10 text-white shadow-inner' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
               >
-                <Icon className={`size-4.5 ${item.active ? 'text-[#35d0ba]' : ''}`} />
+                <Icon className={`size-4.5 ${activeView === item.id ? 'text-[#35d0ba]' : ''}`} />
                 <span className="flex-1">{item.label}</span>
                 {item.count && <span className="rounded-full bg-[#ffbd59] px-2 py-0.5 text-[11px] font-bold text-[#382600]">{item.count}</span>}
               </button>
@@ -109,7 +125,7 @@ export default function Home() {
             <Button variant="ghost" size="icon" className="lg:hidden" aria-label="메뉴 열기"><Menu /></Button>
             <div>
               <p className="text-[12px] font-medium text-slate-500">FAB 운영 표준 관리</p>
-              <h1 className="text-lg font-semibold tracking-tight">운영 대시보드</h1>
+              <h1 className="text-lg font-semibold tracking-tight">{activeView === 'scope' ? 'SOP 적용체계' : '운영 대시보드'}</h1>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -127,6 +143,9 @@ export default function Home() {
           </div>
         </header>
 
+        {activeView === 'scope' ? (
+          <ScopeManagement onCreate={() => setDraftOpen(true)} />
+        ) : (
         <div className="mx-auto max-w-[1500px] p-5 md:p-8 lg:p-10">
           <section className="mb-7 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
             <div>
@@ -177,11 +196,12 @@ export default function Home() {
                 </div>
               </CardHeader>
               <CardContent className="overflow-x-auto p-0">
-                <table className="w-full min-w-[760px] text-left">
+                <table className="w-full min-w-[820px] text-left">
                   <thead className="border-b border-slate-100 bg-slate-50/70 text-[11px] uppercase tracking-wider text-slate-400">
                     <tr>
                       <th className="px-5 py-3.5 font-semibold">문서</th>
                       <th className="px-4 py-3.5 font-semibold">분류</th>
+                      <th className="px-4 py-3.5 font-semibold">적용범위</th>
                       <th className="px-4 py-3.5 font-semibold">담당자</th>
                       <th className="px-4 py-3.5 font-semibold">버전</th>
                       <th className="px-4 py-3.5 font-semibold">수정일</th>
@@ -197,6 +217,7 @@ export default function Home() {
                           <p className="mt-1 font-mono text-[11px] text-slate-400">{doc.id}</p>
                         </td>
                         <td className="px-4 py-4 text-sm text-slate-600">{doc.area}</td>
+                        <td className="px-4 py-4"><ScopeBadge level={doc.scope} /></td>
                         <td className="px-4 py-4 text-sm text-slate-600">{doc.owner}</td>
                         <td className="px-4 py-4 text-xs font-semibold text-slate-600">{doc.version}</td>
                         <td className="px-4 py-4 text-xs text-slate-500">{doc.date}</td>
@@ -206,7 +227,7 @@ export default function Home() {
                     ))}
                     {filteredDocuments.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="px-5 py-14 text-center text-sm text-slate-500">
+                        <td colSpan={8} className="px-5 py-14 text-center text-sm text-slate-500">
                           검색 조건에 맞는 SOP가 없습니다.
                         </td>
                       </tr>
@@ -262,6 +283,7 @@ export default function Home() {
             </aside>
           </div>
         </div>
+        )}
       </section>
 
       {draftOpen && (
@@ -275,7 +297,27 @@ export default function Home() {
           >
             <div>
               <h2 id="new-sop-title" className="text-xl font-semibold">새 SOP 시작</h2>
-              <p className="mt-2 text-sm text-slate-500">문서 유형을 선택하면 표준 템플릿으로 초안이 생성됩니다.</p>
+              <p className="mt-2 text-sm text-slate-500">적용 범위와 문서 유형을 선택하면 표준 템플릿으로 초안이 생성됩니다.</p>
+            </div>
+            <div className="pt-5">
+              <p className="mb-2 text-xs font-semibold text-slate-600">SOP 적용 범위</p>
+              <div className="grid grid-cols-4 gap-2">
+                {scopeLevels.map((scope) => (
+                  <button
+                    key={scope.level}
+                    onClick={() => setSelectedScope(scope.level)}
+                    aria-pressed={selectedScope === scope.level}
+                    className={`rounded-xl border px-2 py-3 text-center transition ${selectedScope === scope.level ? 'border-[#168b78] bg-[#e8f8f5] text-[#126758] shadow-[0_0_0_2px_rgba(53,208,186,.12)]' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                  >
+                    <strong className="block text-sm">{scope.level}</strong>
+                    <span className="mt-1 block text-[10px] leading-4">{scope.title.split(' ')[0]}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="mt-3 flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-xs text-slate-600">
+                <Building2 className="size-4 text-[#168b78]" />
+                <span>적용 조직: <strong>{selectedScope === 'S1' ? '반도체부문 전체' : selectedScope === 'S2' ? '제조부문 전체' : selectedScope === 'S3' ? 'CVD 공정기술팀' : 'PECVD 장비군'}</strong></span>
+              </div>
             </div>
             <div className="grid gap-3 py-5 sm:grid-cols-2">
               {[
@@ -299,6 +341,148 @@ export default function Home() {
       )}
     </main>
   );
+}
+
+function ScopeManagement({ onCreate }: { onCreate: () => void }) {
+  return (
+    <div className="mx-auto max-w-[1500px] p-5 md:p-8 lg:p-10">
+      <section className="mb-7 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
+        <div>
+          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[#168b78]">
+            <GitBranch className="size-4" />
+            조직 깊이와 SOP 적용 범위를 분리하여 관리
+          </div>
+          <h2 className="text-2xl font-semibold tracking-[-0.03em] md:text-3xl">SOP 적용 범위 체계</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">조직도가 바뀌어도 SOP의 목적은 유지됩니다. 조직 Level은 자동 계산하고, SOP에는 실제 적용 범위인 S1~S4를 지정합니다.</p>
+        </div>
+        <Button onClick={onCreate} size="lg" className="h-11 self-start bg-[#102f3d] px-4 text-white hover:bg-[#174556] xl:self-auto">
+          <FilePlus2 className="size-4" /> 적용 범위로 SOP 작성
+        </Button>
+      </section>
+
+      <section className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="SOP 적용 범위 수준">
+        {scopeLevels.map((scope) => (
+          <Card key={scope.level} className="border-0 bg-white py-0 shadow-[0_6px_24px_rgba(23,42,54,.06)] ring-slate-200/70">
+            <CardContent className="p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <span className="grid size-11 place-items-center rounded-xl text-base font-bold" style={{ backgroundColor: scope.background, color: scope.color }}>{scope.level}</span>
+                <Badge variant="outline" className="border-slate-200 text-[10px] text-slate-500">적용범위</Badge>
+              </div>
+              <h3 className="font-semibold text-slate-800">{scope.title}</h3>
+              <p className="mt-1.5 min-h-10 text-xs leading-5 text-slate-500">{scope.description}</p>
+              <p className="mt-4 border-t border-slate-100 pt-3 text-[11px] text-slate-400">예: {scope.example}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </section>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,.7fr)]">
+        <Card className="border-0 bg-white py-0 shadow-[0_8px_30px_rgba(23,42,54,.06)] ring-slate-200/70">
+          <CardHeader className="border-b border-slate-100 p-5 md:flex md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold"><Building2 className="size-5 text-[#168b78]" /> 조직–SOP 매핑 예시</CardTitle>
+              <p className="mt-1 text-xs text-slate-500">팀의 조직 깊이가 달라도 같은 SOP 범위를 사용할 수 있습니다.</p>
+            </div>
+            <div className="mt-3 flex items-center gap-4 text-[11px] text-slate-500 md:mt-0">
+              <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-slate-300" /> 조직 Level</span>
+              <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-[#35d0ba]" /> SOP 범위</span>
+            </div>
+          </CardHeader>
+          <CardContent className="p-5 md:p-6">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 md:p-5">
+              <OrgRow name="반도체부문" type="최상위 부문" depth="조직 L1" scope="S1" />
+              <div className="ml-5 border-l-2 border-slate-200 pl-5">
+                <OrgRow name="제조부문" type="하위 부문" depth="조직 L2" scope="S2" />
+                <div className="ml-5 border-l-2 border-slate-200 pl-5">
+                  <OrgRow name="공정기술부문" type="하위 부문" depth="조직 L3" scope="S2" note="조직은 L3이지만 부문 적용이므로 S2" />
+                  <div className="ml-5 border-l-2 border-slate-200 pl-5">
+                    <OrgRow name="CVD 공정기술팀" type="팀" depth="조직 L4" scope="S3" />
+                    <div className="ml-5 border-l-2 border-slate-200 pl-5">
+                      <OrgRow name="PECVD 장비군" type="설비·작업" depth="대상 단위" scope="S4" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="ml-5 border-l-2 border-slate-200 pl-5">
+                <OrgRow name="품질팀" type="팀" depth="조직 L2" scope="S3" note="직속 팀이어도 팀 적용은 S3" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="space-y-6">
+          <Card className="border-0 bg-[#102f3d] py-0 text-white shadow-[0_12px_36px_rgba(16,47,61,.18)] ring-0">
+            <CardContent className="p-5">
+              <div className="mb-5 flex items-center gap-3">
+                <div className="grid size-10 place-items-center rounded-xl bg-white/10"><CheckCircle2 className="size-5 text-[#65e4d2]" /></div>
+                <div><p className="text-xs font-semibold text-[#65e4d2]">운영 기준</p><p className="text-lg font-semibold">3가지 원칙</p></div>
+              </div>
+              <div className="space-y-4">
+                {[
+                  ['01', '조직 Level은 자동 계산', '상위 조직을 선택하면 현재 깊이를 표시합니다.'],
+                  ['02', 'S-Level은 적용 범위로 선택', '조직 위치가 아니라 적용 대상을 기준으로 합니다.'],
+                  ['03', '조직개편은 연결만 변경', '문서 개정 없이 적용 조직 이력을 갱신합니다.'],
+                ].map(([number, title, description]) => (
+                  <div key={number} className="grid grid-cols-[28px_1fr] gap-3">
+                    <span className="grid size-7 place-items-center rounded-lg bg-white/10 text-[10px] font-bold text-[#65e4d2]">{number}</span>
+                    <div><p className="text-sm font-medium text-white">{title}</p><p className="mt-1 text-xs leading-5 text-slate-400">{description}</p></div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 bg-white py-0 shadow-[0_8px_30px_rgba(23,42,54,.06)] ring-slate-200/70">
+            <CardHeader className="border-b border-slate-100 p-5">
+              <CardTitle className="flex items-center gap-2 text-base font-semibold"><RefreshCw className="size-4 text-[#168b78]" /> 조직개편 영향 관리</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 p-5">
+              <ImpactRow label="조직 이동" action="연결정보 자동 갱신" status="문서 유지" />
+              <ImpactRow label="팀 분할·통합" action="담당자에게 재검토 요청" status="검토 필요" warning />
+              <ImpactRow label="조직 폐지" action="후속 조직 재매핑" status="매핑 필요" warning />
+              <p className="pt-2 text-[11px] leading-5 text-slate-400">모든 변경은 적용 시작일·종료일과 함께 이력으로 보관됩니다.</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OrgRow({ name, type, depth, scope, note }: { name: string; type: string; depth: string; scope: string; note?: string }) {
+  return (
+    <div className="relative mb-3 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm last:mb-0 sm:flex-row sm:items-center">
+      <span className="absolute -left-[23px] top-1/2 hidden h-0.5 w-5 bg-slate-200 sm:block" />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-slate-800">{name}</strong><span className="text-[10px] text-slate-400">{type}</span></div>
+        {note && <p className="mt-1 text-[10px] font-medium text-[#168b78]">{note}</p>}
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <Badge variant="outline" className="border-slate-200 bg-slate-50 text-[10px] text-slate-500">{depth}</Badge>
+        <ScopeBadge level={scope} />
+      </div>
+    </div>
+  );
+}
+
+function ImpactRow({ label, action, status, warning = false }: { label: string; action: string; status: string; warning?: boolean }) {
+  return (
+    <div className="grid grid-cols-[76px_1fr_auto] items-center gap-2 text-xs">
+      <span className="font-medium text-slate-700">{label}</span>
+      <span className="text-slate-400">{action}</span>
+      <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${warning ? 'bg-[#fff1dd] text-[#a45a08]' : 'bg-[#def7ef] text-[#147b6a]'}`}>{status}</span>
+    </div>
+  );
+}
+
+function ScopeBadge({ level }: { level: string }) {
+  const styles: Record<string, string> = {
+    S1: 'border-0 bg-[#def7ef] text-[#147b6a]',
+    S2: 'border-0 bg-[#e9efff] text-[#4666b0]',
+    S3: 'border-0 bg-[#fff1dd] text-[#a45a08]',
+    S4: 'border-0 bg-[#ffe9e5] text-[#b24f42]',
+  };
+  return <Badge className={`${styles[level]} min-w-9 font-bold`}>{level}</Badge>;
 }
 
 function StatusBadge({ tone, children }: { tone: string; children: React.ReactNode }) {
