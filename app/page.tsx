@@ -1195,8 +1195,8 @@ function WorkflowDiagram({ steps, stepTypes, nextStepIndexes, yesBranchIndexes, 
         </div>
       </div>
       {selectedNode !== null && (
-        <div className="mx-auto mt-5 max-w-2xl rounded-2xl border border-[#35d0ba]/30 bg-white p-4 shadow-sm">
-          <div className="flex items-start justify-between gap-3"><div><span className="text-[10px] font-bold text-[#168b78]">노드 {selectedNode + 1} 상세정보</span><h4 className="mt-1 text-sm font-semibold text-slate-800">{steps[selectedNode]?.trim() || '내용 미입력'}</h4></div><Button type="button" variant="ghost" size="icon" className="size-7" onClick={() => setSelectedNode(null)} aria-label="노드 상세 닫기"><X className="size-4" /></Button></div>
+        <aside aria-label="노드 상세정보" className="fixed inset-x-3 bottom-3 z-[80] max-h-[70vh] overflow-y-auto rounded-2xl border border-[#35d0ba]/30 bg-white p-4 shadow-[0_24px_70px_rgba(3,20,28,0.28)] md:inset-x-auto md:bottom-auto md:right-6 md:top-24 md:w-[380px]">
+          <div className="sticky top-0 -mx-1 -mt-1 flex items-start justify-between gap-3 bg-white px-1 pb-3"><div><span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#168b78]">Node inspector · 노드 {selectedNode + 1}</span><h4 className="mt-1 text-sm font-semibold text-slate-800">{steps[selectedNode]?.trim() || '내용 미입력'}</h4></div><Button type="button" variant="ghost" size="icon" className="size-7 shrink-0" onClick={() => setSelectedNode(null)} aria-label="노드 상세 닫기"><X className="size-4" /></Button></div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl bg-slate-50 p-3 sm:col-span-2"><span className="text-[10px] font-semibold text-slate-400">세부 수행 내용</span><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-slate-600">{stepDetails?.[selectedNode]?.trim() || '등록된 세부 수행 내용이 없습니다.'}</p></div>
             {stepResourceKinds?.[selectedNode]?.includes('skill') && <NodeResourceDetail label="Skill" value={stepSkillInfo?.[selectedNode]} />}
@@ -1204,7 +1204,7 @@ function WorkflowDiagram({ steps, stepTypes, nextStepIndexes, yesBranchIndexes, 
             {stepResourceKinds?.[selectedNode]?.includes('agent') && <NodeResourceDetail label="Agent" value={stepAgentInfo?.[selectedNode]} />}
             <div className="rounded-xl bg-slate-50 p-3 sm:col-span-2"><span className="text-[10px] font-semibold text-slate-400">Skill·Tool·Agent 추가 정보</span><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-slate-600">{stepExecutionNotes?.[selectedNode]?.trim() || '등록된 추가 정보가 없습니다.'}</p></div>
           </div>
-        </div>
+        </aside>
       )}
     </div>
   );
