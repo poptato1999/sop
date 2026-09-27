@@ -123,7 +123,7 @@ const sopDetails: Record<string, SopDetail> = {
     stepSkillInfo: ['', '', 'Chamber PM 작업 가이드', '부품 교체 판정 Skill', ''],
     stepToolInfo: ['MES 장비상태 조회 API', 'Equipment Sensor API', '', '', '설비제어·QMS API'],
     stepAgentInfo: ['PM 사전점검 Agent', '안전조건 판정 Agent', '', '부품수명 분석 Agent', '생산전환 승인 Agent'],
-    stepExecutionNotes: ['작업 시작 전 자동 조회', '모든 안전 조건 충족 여부를 계산', '작업자에게 순서별 안내', '판정 결과는 엔지니어 확인 필수', '승인자에게 결과와 증빙을 전달'],
+    stepExecutionNotes: ['MES에서 작업 전 확인에 활용', '설비 센서 정보를 제공', '표준 작업 순서 안내용', '부품 교체 판단 참고', '결과와 증빙 관리에 활용'],
     author: '김서준 · Etch 공정기술팀', reviewer: '박지훈 · 설비기술팀', approver: '이현우 · 제조부문장',
     related: ['EHS-CHEM-003 Chemical 취급 안전기준', 'FAB-ETCH-009 Chamber Parts 교체 기준'], revision: 'v4.2 · PM 후 Seasoning 확인 기준 보완',
     attachments: [{ id: 'sample-etch-checklist', name: 'FAB-ETCH-024_PM_체크리스트.txt', type: 'text/plain', size: 458, url: '/samples/FAB-ETCH-024_PM_checklist.txt' }],
@@ -425,10 +425,10 @@ export default function Home() {
               <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-[#ff7a66]" />
             </Button>
             <div className="ml-1 hidden items-center gap-3 border-l border-slate-200 pl-4 sm:flex">
-              <div className="grid size-9 place-items-center rounded-full bg-[#d9f6f1] text-xs font-bold text-[#126758]">HS</div>
+              <div className="grid size-9 place-items-center rounded-full bg-[#d9f6f1] text-xs font-bold text-[#126758]">AS</div>
               <div className="leading-tight">
-                <p className="text-sm font-semibold">한수민</p>
-                <p className="text-[11px] text-slate-500">품질혁신팀</p>
+                <p className="text-sm font-semibold">안순선</p>
+                <p className="text-[11px] text-slate-500">AXAdvance 부문 · AXPlanning팀</p>
               </div>
             </div>
           </div>
@@ -448,7 +448,7 @@ export default function Home() {
                 <span className="size-2 rounded-full bg-[#35d0ba] shadow-[0_0_0_4px_rgba(53,208,186,.16)]" />
                 전사 SOP 상태 정상
               </div>
-              <h2 className="text-2xl font-semibold tracking-[-0.03em] md:text-3xl">안녕하세요, 한수민님</h2>
+              <h2 className="text-2xl font-semibold tracking-[-0.03em] md:text-3xl">안녕하세요, 안순선님</h2>
               <p className="mt-2 text-sm text-slate-500">전사 SOP와 부문별 Agent 전환 현황을 한눈에 확인하세요.</p>
             </div>
             <Button onClick={openNewSop} size="lg" className="h-11 self-start bg-[#102f3d] px-4 text-white hover:bg-[#174556] xl:self-auto">
@@ -634,7 +634,7 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
   const [stepToolInfo, setStepToolInfo] = useState(['']);
   const [stepAgentInfo, setStepAgentInfo] = useState(['']);
   const [stepExecutionNotes, setStepExecutionNotes] = useState(['']);
-  const [owner, setOwner] = useState('한수민');
+  const [owner, setOwner] = useState('안순선');
   const [reviewer, setReviewer] = useState('');
   const [approver, setApprover] = useState('');
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -681,7 +681,7 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
       setApprover(initialRecord.detail.approver === '승인자 미지정' ? '' : initialRecord.detail.approver);
       setExistingAttachments(initialRecord.detail.attachments ?? []);
     } else {
-      setTitle(''); setDocumentType('작업 표준서'); setScope('S2'); setOrganization(''); setIncludesChildren(true); setPurpose(''); setSteps(['']); setStepAutomation([0]); setHumanApprovalRequired([true]); setStepTypes(['action']); setNextStepIndexes([null]); setYesBranchIndexes([null]); setNoBranchIndexes([null]); setStepDetails(['']); setStepResourceKinds([[]]); setStepSkillInfo(['']); setStepToolInfo(['']); setStepAgentInfo(['']); setStepExecutionNotes(['']); setOwner('한수민'); setReviewer(''); setApprover(''); setExistingAttachments([]);
+      setTitle(''); setDocumentType('작업 표준서'); setScope('S2'); setOrganization(''); setIncludesChildren(true); setPurpose(''); setSteps(['']); setStepAutomation([0]); setHumanApprovalRequired([true]); setStepTypes(['action']); setNextStepIndexes([null]); setYesBranchIndexes([null]); setNoBranchIndexes([null]); setStepDetails(['']); setStepResourceKinds([[]]); setStepSkillInfo(['']); setStepToolInfo(['']); setStepAgentInfo(['']); setStepExecutionNotes(['']); setOwner('안순선'); setReviewer(''); setApprover(''); setExistingAttachments([]);
     }
     setAttachments([]); setError(''); setTypeInputOpen(false); setNewDocumentType('');
   }, [open, initialRecord]);
@@ -780,7 +780,7 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
         stepToolInfo: cleanStepEntries.map((entry) => entry.toolInfo),
         stepAgentInfo: cleanStepEntries.map((entry) => entry.agentInfo),
         stepExecutionNotes: cleanStepEntries.map((entry) => entry.executionNotes),
-        author: `${owner.trim() || '미지정'} · 작성자`,
+        author: owner.trim() === '안순선' ? '안순선 · AXAdvance 부문 AXPlanning팀' : `${owner.trim() || '미지정'} · 작성자`,
         reviewer: reviewer.trim() || '검토자 미지정',
         approver: approver.trim() || '승인자 미지정',
         related: [],
@@ -881,10 +881,10 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
                             </div>
                           </div>
                           <div className="mt-2 space-y-2">
-                            {stepResourceKinds[index]?.includes('skill') && <Input value={stepSkillInfo[index] ?? ''} onChange={(event) => setStepSkillInfo((current) => current.map((value, stepIndex) => stepIndex === index ? event.target.value : value))} className="h-9 bg-slate-50 text-xs" placeholder="Skill 이름·버전·식별자" />}
-                            {stepResourceKinds[index]?.includes('tool') && <Input value={stepToolInfo[index] ?? ''} onChange={(event) => setStepToolInfo((current) => current.map((value, stepIndex) => stepIndex === index ? event.target.value : value))} className="h-9 bg-slate-50 text-xs" placeholder="Tool 또는 API 이름·시스템" />}
-                            {stepResourceKinds[index]?.includes('agent') && <Input value={stepAgentInfo[index] ?? ''} onChange={(event) => setStepAgentInfo((current) => current.map((value, stepIndex) => stepIndex === index ? event.target.value : value))} className="h-9 bg-slate-50 text-xs" placeholder="Agent 이름·역할·담당 범위" />}
-                            {stepResourceKinds[index]?.length > 0 && <Textarea value={stepExecutionNotes[index] ?? ''} onChange={(event) => setStepExecutionNotes((current) => current.map((value, stepIndex) => stepIndex === index ? event.target.value : value))} className="min-h-14 bg-slate-50 text-xs" placeholder="호출 조건, 입력·출력, 연동 방식, 실패 시 처리" />}
+                            {stepResourceKinds[index]?.includes('skill') && <Input value={stepSkillInfo[index] ?? ''} onChange={(event) => setStepSkillInfo((current) => current.map((value, stepIndex) => stepIndex === index ? event.target.value : value))} className="h-9 bg-slate-50 text-xs" placeholder="Skill 관련 정보를 자유롭게 입력" />}
+                            {stepResourceKinds[index]?.includes('tool') && <Input value={stepToolInfo[index] ?? ''} onChange={(event) => setStepToolInfo((current) => current.map((value, stepIndex) => stepIndex === index ? event.target.value : value))} className="h-9 bg-slate-50 text-xs" placeholder="Tool 관련 정보를 자유롭게 입력" />}
+                            {stepResourceKinds[index]?.includes('agent') && <Input value={stepAgentInfo[index] ?? ''} onChange={(event) => setStepAgentInfo((current) => current.map((value, stepIndex) => stepIndex === index ? event.target.value : value))} className="h-9 bg-slate-50 text-xs" placeholder="Agent 관련 정보를 자유롭게 입력" />}
+                            {stepResourceKinds[index]?.length > 0 && <Textarea value={stepExecutionNotes[index] ?? ''} onChange={(event) => setStepExecutionNotes((current) => current.map((value, stepIndex) => stepIndex === index ? event.target.value : value))} className="min-h-14 bg-slate-50 text-xs" placeholder="Skill·Tool·Agent에 대한 추가 정보나 메모를 자유롭게 입력하세요." />}
                           </div>
                         </div>
                         <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
@@ -1202,7 +1202,7 @@ function WorkflowDiagram({ steps, stepTypes, nextStepIndexes, yesBranchIndexes, 
             {stepResourceKinds?.[selectedNode]?.includes('skill') && <NodeResourceDetail label="Skill" value={stepSkillInfo?.[selectedNode]} />}
             {stepResourceKinds?.[selectedNode]?.includes('tool') && <NodeResourceDetail label="Tool" value={stepToolInfo?.[selectedNode]} />}
             {stepResourceKinds?.[selectedNode]?.includes('agent') && <NodeResourceDetail label="Agent" value={stepAgentInfo?.[selectedNode]} />}
-            <div className="rounded-xl bg-slate-50 p-3 sm:col-span-2"><span className="text-[10px] font-semibold text-slate-400">실행·연동 조건</span><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-slate-600">{stepExecutionNotes?.[selectedNode]?.trim() || '등록된 실행·연동 조건이 없습니다.'}</p></div>
+            <div className="rounded-xl bg-slate-50 p-3 sm:col-span-2"><span className="text-[10px] font-semibold text-slate-400">Skill·Tool·Agent 추가 정보</span><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-slate-600">{stepExecutionNotes?.[selectedNode]?.trim() || '등록된 추가 정보가 없습니다.'}</p></div>
           </div>
         </div>
       )}
