@@ -102,7 +102,7 @@ const nav = [
   { id: 'dashboard', label: '대시보드', icon: LayoutDashboard },
   { id: 'scope', label: 'SOP 적용체계', icon: Layers3 },
   { id: 'library', label: 'SOP 라이브러리', icon: BookOpenCheck },
-  { id: 'approval', label: '검토·승인', icon: ClipboardCheck, count: 18 },
+  { id: 'approval', label: '검토·승인', icon: ClipboardCheck },
   { id: 'training', label: '교육 관리', icon: UsersRound },
   { id: 'audit', label: '감사·이력', icon: ShieldCheck },
 ];
@@ -228,6 +228,19 @@ async function downloadAttachment(attachment: AttachmentMeta) {
   if (!attachment.url) setTimeout(() => URL.revokeObjectURL(href), 1000);
 }
 
+async function deleteStoredAttachments(attachments: AttachmentMeta[] = []) {
+  const storedAttachments = attachments.filter((attachment) => !attachment.url);
+  if (!storedAttachments.length) return;
+  const database = await openAttachmentDb();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction(attachmentStore, 'readwrite');
+    storedAttachments.forEach((attachment) => transaction.objectStore(attachmentStore).delete(attachment.id));
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+  database.close();
+}
+
 function formatFileSize(size: number) {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
@@ -280,6 +293,35 @@ export default function Home() {
     });
     window.setTimeout(() => setSaveNotice(null), 4500);
   };
+  const handleApproveSop = (id: string) => {
+    const approvedTitle = createdSops.find((item) => item.doc.id === id)?.doc.title ?? id;
+    setCreatedSops((current) => {
+      const next = current.map((item) => {
+        if (item.doc.id !== id) return item;
+        return {
+          ...item,
+          doc: { ...item.doc, status: '승인 완료', tone: 'approved', date: new Date().toISOString().slice(0, 10).replaceAll('-', '.') },
+          detail: { ...item.detail, revision: `${item.doc.version} · 승인 완료` },
+        };
+      });
+      try { window.localStorage.setItem('sop-central-drafts', JSON.stringify(next)); } catch { /* no-op */ }
+      return next;
+    });
+    setSaveNotice({ title: 'SOP가 승인되었습니다.', description: `${approvedTitle} 문서가 승인 완료 상태로 전환되었습니다.` });
+    window.setTimeout(() => setSaveNotice(null), 4500);
+  };
+  const handleDeleteSop = async (id: string) => {
+    const target = createdSops.find((item) => item.doc.id === id);
+    if (!target) return;
+    try { await deleteStoredAttachments(target.detail.attachments); } catch { /* Continue deleting the record even if browser file cleanup is unavailable. */ }
+    setCreatedSops((current) => {
+      const next = current.filter((item) => item.doc.id !== id);
+      try { window.localStorage.setItem('sop-central-drafts', JSON.stringify(next)); } catch { /* no-op */ }
+      return next;
+    });
+    setSaveNotice({ title: 'SOP가 삭제되었습니다.', description: `${target.doc.title} 문서와 저장된 첨부 파일을 삭제했습니다.` });
+    window.setTimeout(() => setSaveNotice(null), 4500);
+  };
   const filteredDocuments = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     if (!keyword) return documents;
@@ -316,7 +358,7 @@ export default function Home() {
               >
                 <Icon className={`size-4.5 ${activeView === item.id ? 'text-[#35d0ba]' : ''}`} />
                 <span className="flex-1">{item.label}</span>
-                {item.count && <span className="rounded-full bg-[#ffbd59] px-2 py-0.5 text-[11px] font-bold text-[#382600]">{item.count}</span>}
+                {item.id === 'approval' && <span className="rounded-full bg-[#ffbd59] px-2 py-0.5 text-[11px] font-bold text-[#382600]">{createdSops.filter((record) => record.doc.tone === 'review').length}</span>}
               </button>
             );
           })}
@@ -342,7 +384,7 @@ export default function Home() {
             <Button variant="ghost" size="icon" className="lg:hidden" aria-label="메뉴 열기"><Menu /></Button>
             <div>
               <p className="text-[12px] font-medium text-slate-500">FAB 운영 표준 관리</p>
-              <h1 className="text-lg font-semibold tracking-tight">{activeView === 'scope' ? 'SOP 적용체계' : activeView === 'library' ? 'SOP 라이브러리' : '운영 대시보드'}</h1>
+              <h1 className="text-lg font-semibold tracking-tight">{activeView === 'scope' ? 'SOP 적용체계' : activeView === 'library' ? 'SOP 라이브러리' : activeView === 'approval' ? '검토·승인' : '운영 대시보드'}</h1>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -363,7 +405,9 @@ export default function Home() {
         {activeView === 'scope' ? (
           <ScopeManagement onCreate={openNewSop} />
         ) : activeView === 'library' ? (
-          <LibraryView items={allDocuments} details={allDetails} onCreate={openNewSop} onEdit={(record) => { setEditingSop(record); setDraftOpen(true); }} />
+          <LibraryView items={allDocuments} details={allDetails} editableIds={createdSops.map((item) => item.doc.id)} onCreate={openNewSop} onEdit={(record) => { setEditingSop(record); setDraftOpen(true); }} onApprove={handleApproveSop} onDelete={(id) => void handleDeleteSop(id)} />
+        ) : activeView === 'approval' ? (
+          <ApprovalView items={createdSops.filter((item) => item.doc.tone === 'review')} onApprove={handleApproveSop} onDelete={(id) => void handleDeleteSop(id)} />
         ) : (
         <div className="mx-auto max-w-[1500px] p-5 md:p-8 lg:p-10">
           <section className="mb-7 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
@@ -843,7 +887,51 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
   );
 }
 
-function LibraryView({ items, details, onCreate, onEdit }: { items: SopDocument[]; details: Record<string, SopDetail>; onCreate: () => void; onEdit: (record: CreatedSop) => void }) {
+function ApprovalView({ items, onApprove, onDelete }: { items: CreatedSop[]; onApprove: (id: string) => void; onDelete: (id: string) => void }) {
+  return (
+    <div className="mx-auto max-w-[1300px] p-5 md:p-8 lg:p-10">
+      <section className="mb-6">
+        <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[#168b78]"><ClipboardCheck className="size-4" /> 승인 요청된 SOP를 검토하고 최종 승인</div>
+        <h2 className="text-2xl font-semibold tracking-[-0.03em] md:text-3xl">검토·승인 대기함</h2>
+        <p className="mt-2 text-sm text-slate-500">작성자가 승인 요청한 문서만 표시됩니다. 내용과 Agent 전환율을 확인한 후 승인하세요.</p>
+      </section>
+
+      <div className="mb-5 grid gap-3 sm:grid-cols-3">
+        <Card className="border-0 bg-[#102f3d] py-0 text-white shadow-[0_8px_26px_rgba(16,47,61,.16)]"><CardContent className="p-5"><p className="text-xs text-slate-300">승인 대기</p><strong className="mt-1 block text-3xl">{items.length}</strong></CardContent></Card>
+        <Card className="border-0 bg-white py-0 shadow-sm"><CardContent className="p-5"><p className="text-xs text-slate-400">승인 절차</p><p className="mt-2 text-sm font-semibold text-slate-700">내용 확인 → 승인 확인 → 완료</p></CardContent></Card>
+        <Card className="border-0 bg-white py-0 shadow-sm"><CardContent className="p-5"><p className="text-xs text-slate-400">삭제 정책</p><p className="mt-2 text-sm font-semibold text-slate-700">삭제 시 문서·첨부 파일 복구 불가</p></CardContent></Card>
+      </div>
+
+      {items.length ? (
+        <div className="space-y-4">
+          {items.map(({ doc, detail }) => (
+            <Card key={doc.id} className="border-0 bg-white py-0 shadow-[0_8px_26px_rgba(23,42,54,.06)] ring-slate-200/70">
+              <CardContent className="p-5 md:p-6">
+                <div className="flex flex-col gap-5 xl:flex-row xl:items-center">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-2 flex flex-wrap items-center gap-2"><ScopeBadge level={doc.scope} /><StatusBadge tone={doc.tone}>{doc.status}</StatusBadge><span className="font-mono text-[10px] text-slate-400">{doc.id}</span></div>
+                    <h3 className="text-base font-semibold text-slate-800 md:text-lg">{doc.title}</h3>
+                    <p className="mt-1 text-xs text-slate-500">{detail.organization}</p>
+                    <div className="mt-4 grid gap-2 text-xs text-slate-500 sm:grid-cols-3"><span><strong className="text-slate-700">작성</strong> {detail.author}</span><span><strong className="text-slate-700">검토</strong> {detail.reviewer}</span><span><strong className="text-slate-700">승인</strong> {detail.approver}</span></div>
+                  </div>
+                  <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:w-[420px]">
+                    <div className="rounded-xl bg-slate-50 p-3 text-center"><span className="block text-[10px] text-slate-400">Workflow</span><strong className="mt-1 block text-sm text-slate-700">{detail.steps.length}개 노드</strong></div>
+                    <div className="rounded-xl bg-[#f0fbf9] p-3 text-center"><span className="block text-[10px] text-[#168b78]">Agent 전환율</span><strong className="mt-1 block text-lg text-[#147b6a]">{getAgentConversion(detail) ?? 0}%</strong></div>
+                    <div className="col-span-2 flex gap-2 sm:col-span-1 sm:flex-col"><Button className="flex-1 bg-[#168b78] text-white hover:bg-[#147b6a]" onClick={() => { if (window.confirm(`'${doc.title}' SOP를 최종 승인하시겠습니까?`)) onApprove(doc.id); }}><CheckCircle2 className="size-4" /> 승인</Button><Button variant="outline" className="flex-1 border-[#ff7a66]/40 text-[#b24f42] hover:bg-[#fff5f3]" onClick={() => { if (window.confirm(`'${doc.title}' SOP를 삭제하시겠습니까? 삭제 후 복구할 수 없습니다.`)) onDelete(doc.id); }}><Trash2 className="size-4" /> 삭제</Button></div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="border-0 bg-white py-0 shadow-sm"><CardContent className="grid min-h-72 place-items-center p-8 text-center"><div><div className="mx-auto grid size-14 place-items-center rounded-full bg-[#def7ef] text-[#147b6a]"><CheckCircle2 className="size-7" /></div><h3 className="mt-4 font-semibold text-slate-800">승인 대기 문서가 없습니다</h3><p className="mt-2 text-sm text-slate-400">새 SOP가 승인 요청되면 이 화면에 표시됩니다.</p></div></CardContent></Card>
+      )}
+    </div>
+  );
+}
+
+function LibraryView({ items, details, editableIds, onCreate, onEdit, onApprove, onDelete }: { items: SopDocument[]; details: Record<string, SopDetail>; editableIds: string[]; onCreate: () => void; onEdit: (record: CreatedSop) => void; onApprove: (id: string) => void; onDelete: (id: string) => void }) {
   const [search, setSearch] = useState('');
   const [scopeFilter, setScopeFilter] = useState('ALL');
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -948,7 +1036,7 @@ function LibraryView({ items, details, onCreate, onEdit }: { items: SopDocument[
               </section>
               <div className="grid gap-6 lg:grid-cols-2"><section><SectionTitle number="04" title="책임 및 승인" /><div className="space-y-2 rounded-xl border border-slate-200 p-4"><Responsibility label="작성" value={detail.author} /><Responsibility label="검토" value={detail.reviewer} /><Responsibility label="승인" value={detail.approver} /></div></section><section><SectionTitle number="05" title="연관 문서 및 이력" /><div className="space-y-2 rounded-xl border border-slate-200 p-4">{detail.related.map((item) => <div key={item} className="flex items-center gap-2 text-xs text-slate-600"><Link2 className="size-3.5 text-[#168b78]" /><span>{item}</span></div>)}<div className="mt-3 flex items-start gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500"><History className="mt-0.5 size-3.5 text-[#168b78]" /><span>{detail.revision}</span></div></div></section></div>
             </div>
-            <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 md:px-6"><span className="text-xs text-slate-400">첨부 문서 {detail.attachments?.length ?? 0}개</span><div className="flex gap-2">{selected.tone === 'draft' && <Button variant="outline" onClick={() => { setDetailId(null); onEdit({ doc: selected, detail }); }}><FileText className="size-4" /> 이어서 작성</Button>}<Button variant="outline">개정 이력</Button><Button onClick={() => setDetailId(null)} className="bg-[#102f3d] text-white">닫기</Button></div></footer>
+            <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 md:px-6"><span className="text-xs text-slate-400">첨부 문서 {detail.attachments?.length ?? 0}개</span><div className="flex flex-wrap justify-end gap-2">{editableIds.includes(selected.id) && <Button variant="outline" className="border-[#ff7a66]/40 text-[#b24f42] hover:bg-[#fff5f3]" onClick={() => { if (window.confirm(`'${selected.title}' SOP를 삭제하시겠습니까? 삭제한 문서와 첨부 파일은 복구할 수 없습니다.`)) { setDetailId(null); onDelete(selected.id); } }}><Trash2 className="size-4" /> 삭제</Button>}{selected.tone === 'draft' && <Button variant="outline" onClick={() => { setDetailId(null); onEdit({ doc: selected, detail }); }}><FileText className="size-4" /> 이어서 작성</Button>}{editableIds.includes(selected.id) && selected.tone === 'review' && <Button className="bg-[#168b78] text-white hover:bg-[#147b6a]" onClick={() => { if (window.confirm(`'${selected.title}' SOP를 최종 승인하시겠습니까?`)) { setDetailId(null); onApprove(selected.id); } }}><CheckCircle2 className="size-4" /> 승인</Button>}<Button variant="outline">개정 이력</Button><Button onClick={() => setDetailId(null)} className="bg-[#102f3d] text-white">닫기</Button></div></footer>
           </section>
         </div>
       )}
