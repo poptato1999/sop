@@ -57,6 +57,7 @@ type SopDetail = {
   includesChildren: boolean;
   purpose: string;
   steps: string[];
+  stepAutomation?: boolean[];
   author: string;
   reviewer: string;
   approver: string;
@@ -112,6 +113,7 @@ const sopDetails: Record<string, SopDetail> = {
     includesChildren: false,
     purpose: 'Dry Etcher Chamber의 정기 PM 작업을 표준화하여 Particle 발생과 공정 편차를 예방하고, 작업자별 품질 차이를 최소화한다.',
     steps: ['설비 상태와 Lot 잔류 여부를 확인하고 장비를 Maintenance Mode로 전환한다.', 'Chamber 온도와 RF 전원이 안전 기준에 도달했는지 확인한다.', '표준 체크리스트 순서에 따라 Chamber를 분해하고 부품 상태를 기록한다.', '지정 Chemical과 Tool을 사용하여 세정 후 교체 대상 부품을 판정한다.', '조립·Leak Check·Seasoning 완료 후 엔지니어 승인을 받아 생산 전환한다.'],
+    stepAutomation: [true, true, true, false, false],
     author: '김서준 · Etch 공정기술팀', reviewer: '박지훈 · 설비기술팀', approver: '이현우 · 제조부문장',
     related: ['EHS-CHEM-003 Chemical 취급 안전기준', 'FAB-ETCH-009 Chamber Parts 교체 기준'], revision: 'v4.2 · PM 후 Seasoning 확인 기준 보완',
     attachments: [{ id: 'sample-etch-checklist', name: 'FAB-ETCH-024_PM_체크리스트.txt', type: 'text/plain', size: 458, url: '/samples/FAB-ETCH-024_PM_checklist.txt' }],
@@ -121,6 +123,7 @@ const sopDetails: Record<string, SopDetail> = {
     includesChildren: true,
     purpose: '공정 이상 발생 시 초기 판단과 보고 체계를 통일하여 영향 Lot 확산을 방지하고 신속한 원인 분석을 지원한다.',
     steps: ['이상 신호를 확인하고 관련 Lot과 장비를 즉시 Hold한다.', '품질 영향 범위와 최근 정상 시점을 확인한다.', '담당 엔지니어·품질보증·생산관리 조직에 동시에 통보한다.', '초기 분석 결과에 따라 생산 재개 또는 추가 격리를 결정한다.', '조치 결과와 재발방지 항목을 QMS에 기록한다.'],
+    stepAutomation: [true, true, true, false, true],
     author: '박예린 · 품질혁신팀', reviewer: '김태윤 · 제조기술팀', approver: '오지훈 · 반도체부문장',
     related: ['QMS-HOLD-004 Lot Hold 관리', 'QMS-RCA-002 원인분석 기준'], revision: 'v3.0 · 전사 공통 보고시간 기준 반영',
   },
@@ -129,6 +132,7 @@ const sopDetails: Record<string, SopDetail> = {
     includesChildren: true,
     purpose: '특수가스 누출 시 인명 안전을 최우선으로 확보하고, 사고 확산을 방지하기 위한 초기 비상 대응 기준을 정의한다.',
     steps: ['가스 경보 확인 즉시 작업을 중지하고 인근 인원을 대피시킨다.', '비상 연락망으로 방재센터와 EHS 담당자에게 신고한다.', '허가된 대응 인력만 보호구를 착용하고 현장에 접근한다.', '가스 공급 차단과 배기 상태를 확인한다.', '안전 판정 후 원인 조사와 재가동 승인을 진행한다.'],
+    stepAutomation: [true, true, false, true, false],
     author: '이도윤 · EHS팀', reviewer: '정가영 · 시설기술팀', approver: '강민석 · 제조부문장',
     related: ['EHS-EVA-001 비상대피 기준', 'FAC-GAS-005 가스 공급 차단 절차'], revision: 'v5.1 · 야간 비상 연락망 최신화',
   },
@@ -137,6 +141,7 @@ const sopDetails: Record<string, SopDetail> = {
     includesChildren: false,
     purpose: 'PECVD Recipe의 생성·변경·검증·배포 절차를 통제하여 승인되지 않은 조건 변경과 품질 편차를 방지한다.',
     steps: ['변경 목적과 영향 제품을 명확히 작성한다.', 'DOE 결과와 품질 영향 평가 자료를 첨부한다.', '공정기술·품질·생산 담당자의 검토를 진행한다.', '승인 완료 후 지정 시간에 Recipe를 배포한다.', '초기 생산 Lot 결과를 확인하고 변경을 종결한다.'],
+    stepAutomation: [true, true, true, true, false],
     author: '최하린 · CVD 공정기술팀', reviewer: '윤도현 · 품질보증팀', approver: '배서윤 · 제조기술담당',
     related: ['QMS-CHG-001 변경관리 기본정책', 'FAB-CVD-012 DOE 수행 기준'], revision: 'v2.8 · 초기 생산 Lot 판정 기준 변경',
   },
@@ -145,6 +150,7 @@ const sopDetails: Record<string, SopDetail> = {
     includesChildren: true,
     purpose: 'UPW 수질 이상 발생 시 공급 영향도를 신속히 판단하고 영향 공정을 보호하기 위한 조치 기준을 정의한다.',
     steps: ['TOC·Resistivity·Particle 이상 항목을 재측정한다.', '영향 공급계통과 사용 공정을 식별한다.', '기준 이탈 수준에 따라 공급 유지 또는 차단을 결정한다.', '공정 담당자에게 영향 범위와 예상 복구 시간을 통보한다.', '정상화 확인 후 단계적으로 공급을 재개한다.'],
+    stepAutomation: [true, true, false, true, false],
     author: '정시우 · 시설기술팀', reviewer: '이수아 · 품질보증팀', approver: '문지호 · 시설기술부문장',
     related: ['FAC-UPW-002 UPW 품질 관리기준', 'QMS-INC-011 공정 이상 초기 대응'], revision: 'v1.9 · TOC 재측정 시간 명확화',
   },
@@ -206,6 +212,12 @@ function formatFileSize(size: number) {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getAgentConversion(detail?: SopDetail) {
+  if (!detail?.steps.length || !detail.stepAutomation) return null;
+  const automatableSteps = detail.steps.filter((_, index) => detail.stepAutomation?.[index]).length;
+  return Math.round((automatableSteps / detail.steps.length) * 100);
 }
 
 export default function Home() {
@@ -491,6 +503,7 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
   const [includesChildren, setIncludesChildren] = useState(true);
   const [purpose, setPurpose] = useState('');
   const [steps, setSteps] = useState(['']);
+  const [stepAutomation, setStepAutomation] = useState([false]);
   const [owner, setOwner] = useState('한수민');
   const [reviewer, setReviewer] = useState('');
   const [approver, setApprover] = useState('');
@@ -521,12 +534,13 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
       setIncludesChildren(initialRecord.detail.includesChildren);
       setPurpose(initialRecord.detail.purpose === '목적 및 적용 기준 작성 중' ? '' : initialRecord.detail.purpose);
       setSteps(initialRecord.detail.steps.length ? initialRecord.detail.steps : ['']);
+      setStepAutomation(initialRecord.detail.steps.length ? initialRecord.detail.steps.map((_, index) => initialRecord.detail.stepAutomation?.[index] ?? false) : [false]);
       setOwner(initialRecord.doc.owner === '미지정' ? '' : initialRecord.doc.owner);
       setReviewer(initialRecord.detail.reviewer === '검토자 미지정' ? '' : initialRecord.detail.reviewer);
       setApprover(initialRecord.detail.approver === '승인자 미지정' ? '' : initialRecord.detail.approver);
       setExistingAttachments(initialRecord.detail.attachments ?? []);
     } else {
-      setTitle(''); setDocumentType('작업 표준서'); setScope('S2'); setOrganization(''); setIncludesChildren(true); setPurpose(''); setSteps(['']); setOwner('한수민'); setReviewer(''); setApprover(''); setExistingAttachments([]);
+      setTitle(''); setDocumentType('작업 표준서'); setScope('S2'); setOrganization(''); setIncludesChildren(true); setPurpose(''); setSteps(['']); setStepAutomation([false]); setOwner('한수민'); setReviewer(''); setApprover(''); setExistingAttachments([]);
     }
     setAttachments([]); setError(''); setTypeInputOpen(false); setNewDocumentType('');
   }, [open, initialRecord]);
@@ -534,7 +548,11 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
   if (!open) return null;
 
   const updateStep = (index: number, value: string) => setSteps((current) => current.map((step, stepIndex) => stepIndex === index ? value : step));
-  const removeStep = (index: number) => setSteps((current) => current.length === 1 ? current : current.filter((_, stepIndex) => stepIndex !== index));
+  const removeStep = (index: number) => {
+    if (steps.length === 1) return;
+    setSteps((current) => current.filter((_, stepIndex) => stepIndex !== index));
+    setStepAutomation((current) => current.filter((_, stepIndex) => stepIndex !== index));
+  };
   const addDocumentType = () => {
     const nextType = newDocumentType.trim();
     if (!nextType) return;
@@ -546,7 +564,8 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
     try { window.localStorage.setItem('sop-central-document-types', JSON.stringify(nextTypes)); } catch { /* no-op */ }
   };
   const save = async (submitForApproval: boolean) => {
-    const cleanSteps = steps.map((step) => step.trim()).filter(Boolean);
+    const cleanStepEntries = steps.map((step, index) => ({ text: step.trim(), automated: stepAutomation[index] ?? false })).filter((entry) => entry.text);
+    const cleanSteps = cleanStepEntries.map((entry) => entry.text);
     if (!title.trim()) {
       setError('임시 저장하려면 SOP 제목을 입력해 주세요.');
       return;
@@ -578,6 +597,7 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
         includesChildren,
         purpose: purpose.trim() || '목적 및 적용 기준 작성 중',
         steps: cleanSteps,
+        stepAutomation: cleanStepEntries.map((entry) => entry.automated),
         author: `${owner.trim() || '미지정'} · 작성자`,
         reviewer: reviewer.trim() || '검토자 미지정',
         approver: approver.trim() || '승인자 미지정',
@@ -587,7 +607,7 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
       },
     };
       onSave(record, submitForApproval);
-      setTitle(''); setDocumentType('작업 표준서'); setScope('S2'); setOrganization(''); setIncludesChildren(true); setPurpose(''); setSteps(['']); setReviewer(''); setApprover(''); setAttachments([]); setExistingAttachments([]); setError('');
+      setTitle(''); setDocumentType('작업 표준서'); setScope('S2'); setOrganization(''); setIncludesChildren(true); setPurpose(''); setSteps(['']); setStepAutomation([false]); setReviewer(''); setApprover(''); setAttachments([]); setExistingAttachments([]); setError('');
     } catch {
       setError('첨부 파일 저장 중 오류가 발생했습니다. 파일을 다시 선택해 주세요.');
     } finally {
@@ -642,15 +662,25 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
               </section>
 
               <section>
-                <div className="mb-3 flex items-center justify-between"><SectionTitle number="03" title="표준 작업 절차" /><Button onClick={() => setSteps((current) => [...current, ''])} variant="outline" size="sm"><Plus className="size-3.5" /> 단계 추가</Button></div>
+                <div className="mb-3 flex items-center justify-between"><SectionTitle number="03" title="표준 작업 절차" /><Button onClick={() => { setSteps((current) => [...current, '']); setStepAutomation((current) => [...current, false]); }} variant="outline" size="sm"><Plus className="size-3.5" /> 단계 추가</Button></div>
                 <div className="space-y-3">
                   {steps.map((step, index) => (
                     <div key={index} className="grid grid-cols-[30px_1fr_32px] items-start gap-2 rounded-xl bg-slate-50 p-3">
                       <span className="grid size-7 place-items-center rounded-lg bg-[#102f3d] text-[11px] font-bold text-white">{index + 1}</span>
-                      <Textarea value={step} onChange={(event) => updateStep(index, event.target.value)} className="min-h-16 bg-white" placeholder={`${index + 1}단계 작업 내용과 확인 기준`} />
+                      <div>
+                        <Textarea value={step} onChange={(event) => updateStep(index, event.target.value)} className="min-h-16 bg-white" placeholder={`${index + 1}단계 작업 내용과 확인 기준`} />
+                        <label className={`mt-2 flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition ${stepAutomation[index] ? 'border-[#35d0ba]/40 bg-[#e1f7f3] text-[#147b6a]' : 'border-slate-200 bg-white text-slate-500'}`}>
+                          <input type="checkbox" checked={stepAutomation[index] ?? false} onChange={(event) => setStepAutomation((current) => current.map((value, stepIndex) => stepIndex === index ? event.target.checked : value))} className="size-4 accent-[#168b78]" />
+                          <Sparkles className="size-3.5" /> AI Agent가 이 단계를 대신 수행할 수 있음
+                        </label>
+                      </div>
                       <Button onClick={() => removeStep(index)} variant="ghost" size="icon" disabled={steps.length === 1} aria-label={`${index + 1}단계 삭제`}><Trash2 className="size-4 text-slate-400" /></Button>
                     </div>
                   ))}
+                </div>
+                <div className="mt-3 flex items-center gap-3 rounded-xl border border-[#35d0ba]/25 bg-[#f0fbf9] px-4 py-3">
+                  <div className="grid size-10 place-items-center rounded-full bg-white text-sm font-bold text-[#147b6a] shadow-sm">{steps.filter((step) => step.trim()).length ? Math.round((steps.filter((step, index) => step.trim() && stepAutomation[index]).length / steps.filter((step) => step.trim()).length) * 100) : 0}%</div>
+                  <div><p className="text-xs font-semibold text-slate-700">예상 Agent 전환율</p><p className="mt-0.5 text-[10px] text-slate-500">대행 가능 단계 ÷ 작성된 전체 단계</p></div>
                 </div>
               </section>
 
@@ -780,19 +810,19 @@ function LibraryView({ items, details, onCreate, onEdit }: { items: SopDocument[
           <span className="mt-2 text-xs text-slate-400 md:mt-0">최근 업데이트 순</span>
         </CardHeader>
         <CardContent className="overflow-x-auto p-0">
-          <table className="w-full min-w-[920px] text-left">
+          <table className="w-full min-w-[1040px] text-left">
             <thead className="border-b border-slate-100 bg-slate-50/70 text-[11px] uppercase tracking-wider text-slate-400">
-              <tr><th className="px-5 py-3.5 font-semibold">문서</th><th className="px-4 py-3.5 font-semibold">적용범위</th><th className="px-4 py-3.5 font-semibold">공정·분류</th><th className="px-4 py-3.5 font-semibold">담당자</th><th className="px-4 py-3.5 font-semibold">버전</th><th className="px-4 py-3.5 font-semibold">수정일</th><th className="px-4 py-3.5 font-semibold">상태</th><th className="w-28 px-4 py-3.5" /></tr>
+              <tr><th className="px-5 py-3.5 font-semibold">문서</th><th className="px-4 py-3.5 font-semibold">적용범위</th><th className="px-4 py-3.5 font-semibold">Agent 전환율</th><th className="px-4 py-3.5 font-semibold">공정·분류</th><th className="px-4 py-3.5 font-semibold">담당자</th><th className="px-4 py-3.5 font-semibold">버전</th><th className="px-4 py-3.5 font-semibold">수정일</th><th className="px-4 py-3.5 font-semibold">상태</th><th className="w-28 px-4 py-3.5" /></tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.map((doc) => (
                 <tr key={doc.id} onDoubleClick={() => setDetailId(doc.id)} className="group cursor-default select-none transition hover:bg-[#f0fbf9]">
                   <td className="px-5 py-4"><div className="flex items-center gap-3"><div className="grid size-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-400 group-hover:bg-[#dff7f2] group-hover:text-[#168b78]"><FileText className="size-4" /></div><div><p className="font-medium text-slate-800 group-hover:text-[#147b6a]">{doc.title}</p><p className="mt-1 font-mono text-[10px] text-slate-400">{doc.id}</p></div></div></td>
-                  <td className="px-4 py-4"><ScopeBadge level={doc.scope} /></td><td className="px-4 py-4 text-sm text-slate-600">{doc.area}</td><td className="px-4 py-4 text-sm text-slate-600">{doc.owner}</td><td className="px-4 py-4 text-xs font-semibold text-slate-600">{doc.version}</td><td className="px-4 py-4 text-xs text-slate-500">{doc.date}</td><td className="px-4 py-4"><StatusBadge tone={doc.tone}>{doc.status}</StatusBadge></td>
+                  <td className="px-4 py-4"><ScopeBadge level={doc.scope} /></td><td className="px-4 py-4"><AgentConversionBadge rate={getAgentConversion(details[doc.id])} /></td><td className="px-4 py-4 text-sm text-slate-600">{doc.area}</td><td className="px-4 py-4 text-sm text-slate-600">{doc.owner}</td><td className="px-4 py-4 text-xs font-semibold text-slate-600">{doc.version}</td><td className="px-4 py-4 text-xs text-slate-500">{doc.date}</td><td className="px-4 py-4"><StatusBadge tone={doc.tone}>{doc.status}</StatusBadge></td>
                   <td className="px-4 py-4"><Button onClick={() => { setAttachmentError(''); setDetailId(doc.id); }} variant="ghost" size="sm" className="text-[#168b78]"><Eye className="size-3.5" /> 상세 보기</Button></td>
                 </tr>
               ))}
-              {filtered.length === 0 && <tr><td colSpan={8} className="px-5 py-14 text-center text-sm text-slate-400">조건에 맞는 SOP가 없습니다.</td></tr>}
+              {filtered.length === 0 && <tr><td colSpan={9} className="px-5 py-14 text-center text-sm text-slate-400">조건에 맞는 SOP가 없습니다.</td></tr>}
             </tbody>
           </table>
         </CardContent>
@@ -806,9 +836,9 @@ function LibraryView({ items, details, onCreate, onEdit }: { items: SopDocument[
               <Button onClick={() => setDetailId(null)} variant="ghost" size="icon" className="shrink-0 rounded-full" aria-label="상세 화면 닫기"><X className="size-5" /></Button>
             </header>
             <div className="overflow-y-auto p-5 md:p-6">
-              <section className="mb-6 grid gap-3 rounded-2xl border border-[#35d0ba]/25 bg-[#f0fbf9] p-4 md:grid-cols-[1fr_auto] md:items-center"><div><div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[#147b6a]"><Building2 className="size-4" /> 적용 조직</div><p className="text-sm font-semibold text-slate-800">{detail.organization}</p><p className="mt-1 text-xs text-slate-500">{detail.includesChildren ? '해당 조직과 모든 하위 조직에 적용' : '지정된 조직·대상에만 적용'}</p></div><div className="rounded-xl bg-white px-4 py-3 text-center shadow-sm ring-1 ring-[#35d0ba]/20"><span className="block text-[10px] text-slate-400">SOP 적용 범위</span><strong className="mt-1 block text-xl text-[#147b6a]">{selected.scope}</strong></div></section>
+              <section className="mb-6 grid gap-3 rounded-2xl border border-[#35d0ba]/25 bg-[#f0fbf9] p-4 md:grid-cols-[1fr_auto_auto] md:items-center"><div><div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[#147b6a]"><Building2 className="size-4" /> 적용 조직</div><p className="text-sm font-semibold text-slate-800">{detail.organization}</p><p className="mt-1 text-xs text-slate-500">{detail.includesChildren ? '해당 조직과 모든 하위 조직에 적용' : '지정된 조직·대상에만 적용'}</p></div><div className="rounded-xl bg-white px-4 py-3 text-center shadow-sm ring-1 ring-[#35d0ba]/20"><span className="block text-[10px] text-slate-400">SOP 적용 범위</span><strong className="mt-1 block text-xl text-[#147b6a]">{selected.scope}</strong></div><div className="rounded-xl bg-[#102f3d] px-4 py-3 text-center text-white shadow-sm"><span className="block text-[10px] text-slate-300">Agent 전환율</span><strong className="mt-1 block text-xl">{getAgentConversion(detail) === null ? '미평가' : `${getAgentConversion(detail)}%`}</strong></div></section>
               <section className="mb-7"><SectionTitle number="01" title="목적 및 적용 기준" /><p className="text-sm leading-7 text-slate-600">{detail.purpose}</p></section>
-              <section className="mb-7"><SectionTitle number="02" title="표준 작업 절차" /><ol className="space-y-3">{detail.steps.map((step, index) => <li key={step} className="grid grid-cols-[30px_1fr] gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600"><span className="grid size-7 place-items-center rounded-lg bg-[#102f3d] text-[11px] font-bold text-white">{index + 1}</span><span>{step}</span></li>)}</ol></section>
+              <section className="mb-7"><SectionTitle number="02" title="표준 작업 절차" /><ol className="space-y-3">{detail.steps.map((step, index) => <li key={step} className="grid grid-cols-[30px_1fr_auto] items-start gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600"><span className="grid size-7 place-items-center rounded-lg bg-[#102f3d] text-[11px] font-bold text-white">{index + 1}</span><span>{step}</span><span className={`mt-0.5 flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold ${detail.stepAutomation?.[index] ? 'bg-[#def7ef] text-[#147b6a]' : 'bg-slate-200 text-slate-500'}`}><Sparkles className="size-3" />{detail.stepAutomation ? (detail.stepAutomation[index] ? 'Agent 대행 가능' : '사람 수행') : '미평가'}</span></li>)}</ol></section>
               <section className="mb-7">
                 <SectionTitle number="03" title="첨부 문서" />
                 {detail.attachments?.length ? (
@@ -992,6 +1022,16 @@ function ScopeBadge({ level }: { level: string }) {
     S4: 'border-0 bg-[#ffe9e5] text-[#b24f42]',
   };
   return <Badge className={`${styles[level]} min-w-9 font-bold`}>{level}</Badge>;
+}
+
+function AgentConversionBadge({ rate }: { rate: number | null }) {
+  if (rate === null) return <span className="text-[11px] font-medium text-slate-400">미평가</span>;
+  return (
+    <div className="flex min-w-24 items-center gap-2">
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200"><span className="block h-full rounded-full bg-[#35d0ba]" style={{ width: `${rate}%` }} /></div>
+      <strong className="w-8 text-right text-xs text-[#147b6a]">{rate}%</strong>
+    </div>
+  );
 }
 
 function StatusBadge({ tone, children }: { tone: string; children: React.ReactNode }) {
