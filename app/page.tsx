@@ -261,6 +261,58 @@ function getAgentConversion(detail?: SopDetail) {
   return Math.round(totalRate / detail.steps.length);
 }
 
+function escapeHtml(value: unknown) {
+  return String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[character] ?? character);
+}
+
+function buildSopExportHtml(doc: SopDocument, detail: SopDetail) {
+  const conversion = getAgentConversion(detail);
+  const generatedAt = new Intl.DateTimeFormat('ko-KR', { dateStyle: 'long', timeStyle: 'short' }).format(new Date());
+  const nodeTypeLabel: Record<WorkflowStepType, string> = { action: '작업', decision: '조건 분기', end: '종료' };
+  const targetLabel = (target: number | null | undefined) => target === null || target === undefined ? 'Workflow 종료' : `노드 ${target + 1}`;
+  const workflow = detail.steps.map((step, index) => {
+    const type = detail.stepTypes?.[index] ?? 'action';
+    const resources = detail.stepResourceKinds?.[index] ?? [];
+    const routing = type === 'decision'
+      ? `<div class="routes"><span class="yes">YES → ${escapeHtml(targetLabel(detail.yesBranchIndexes?.[index]))}</span><span class="no">NO → ${escapeHtml(targetLabel(detail.noBranchIndexes?.[index]))}</span></div>`
+      : type === 'end' ? '<div class="route">이 노드에서 Workflow 종료</div>' : `<div class="route">다음 → ${escapeHtml(targetLabel(detail.nextStepIndexes?.[index] ?? (index < detail.steps.length - 1 ? index + 1 : null)))}</div>`;
+    const resourceInfo = [
+      resources.includes('skill') ? `<div class="resource"><b>Skill</b><span>${escapeHtml(detail.stepSkillInfo?.[index] || '정보 미입력')}</span></div>` : '',
+      resources.includes('tool') ? `<div class="resource"><b>Tool</b><span>${escapeHtml(detail.stepToolInfo?.[index] || '정보 미입력')}</span></div>` : '',
+      resources.includes('agent') ? `<div class="resource"><b>Agent</b><span>${escapeHtml(detail.stepAgentInfo?.[index] || '정보 미입력')}</span></div>` : '',
+    ].join('');
+    return `<details class="node" open><summary><span class="node-number">${index + 1}</span><span class="node-heading"><small>${nodeTypeLabel[type]}</small><strong>${escapeHtml(step || '내용 미입력')}</strong></span><span class="rate">Agent ${automationRate(detail.stepAutomation?.[index])}%</span></summary>${routing}<div class="node-body"><div class="detail"><b>세부 수행 내용</b><p>${escapeHtml(detail.stepDetails?.[index] || '등록된 세부 수행 내용이 없습니다.')}</p></div>${resourceInfo ? `<div class="resources">${resourceInfo}</div>` : ''}<div class="detail"><b>Skill·Tool·Agent 추가 정보</b><p>${escapeHtml(detail.stepExecutionNotes?.[index] || '등록된 추가 정보가 없습니다.')}</p></div><div class="approval">${detail.humanApprovalRequired?.[index] ?? true ? '사람 확인·승인 필수' : '사람 승인 없이 진행 가능'}</div></div></details>`;
+  }).join('<div class="connector">↓</div>');
+  const attachments = detail.attachments?.length
+    ? detail.attachments.map((attachment) => `<li>${escapeHtml(attachment.name)} <span>${escapeHtml(attachment.type || '파일')} · ${escapeHtml(formatFileSize(attachment.size))}</span></li>`).join('')
+    : '<li>등록된 첨부 문서가 없습니다.</li>';
+  const related = detail.related.length ? detail.related.map((item) => `<li>${escapeHtml(item)}</li>`).join('') : '<li>등록된 연관 문서가 없습니다.</li>';
+  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(doc.id)}_${escapeHtml(doc.title)}</title><style>
+  :root{color-scheme:light;font-family:Pretendard,"Noto Sans KR",Arial,sans-serif;color:#142129;background:#eef2f4}*{box-sizing:border-box}body{margin:0;padding:36px 20px;background:#eef2f4}.page{position:relative;max-width:980px;margin:auto;background:#fff;padding:48px;border-radius:18px;box-shadow:0 16px 50px rgba(6,24,31,.12)}.watermark{position:absolute;right:48px;top:26px;color:#b24f42;font-size:11px;font-weight:800;letter-spacing:.14em}.brand{color:#168b78;font-size:12px;font-weight:800;letter-spacing:.12em}.title{margin:12px 0 8px;font-size:29px;letter-spacing:-.03em}.meta{color:#65727a;font-size:12px}.summary{display:grid;grid-template-columns:1fr repeat(2,140px);gap:12px;margin:28px 0}.summary>div{border:1px solid #d9e3e7;border-radius:12px;padding:14px}.summary .org{background:#f0fbf9}.summary span,.section-label{display:block;color:#7d8b92;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}.summary strong{display:block;margin-top:6px;font-size:15px}.summary .metric{text-align:center}.summary .metric strong{color:#147b6a;font-size:24px}section{margin-top:30px}h2{margin:0 0 12px;font-size:17px}p{white-space:pre-wrap;line-height:1.75;color:#52616a;font-size:13px}.workflow{padding:18px;border-radius:16px;background:#f7f9fa;border:1px solid #dfe7ea}.node{border:1px solid #dbe3e7;border-radius:13px;background:#fff;overflow:hidden}.node summary{display:flex;align-items:flex-start;gap:12px;padding:14px;cursor:pointer;list-style:none}.node summary::-webkit-details-marker{display:none}.node-number{display:grid;place-items:center;flex:0 0 32px;height:32px;border-radius:9px;background:#e9efff;color:#4666b0;font-weight:800}.node-heading{min-width:0;flex:1}.node-heading small{display:block;color:#8b989e;font-size:9px;font-weight:800;letter-spacing:.09em}.node-heading strong{display:block;margin-top:4px;font-size:13px;line-height:1.5}.rate{white-space:nowrap;border-radius:999px;background:#def7ef;color:#147b6a;padding:5px 9px;font-size:10px;font-weight:800}.connector{text-align:center;color:#9aabb2;padding:5px}.route,.routes{margin:0 14px 12px;padding:8px;border-radius:8px;background:#f4f7f8;color:#66757d;font-size:10px;text-align:center}.routes{display:grid;grid-template-columns:1fr 1fr;gap:8px;background:transparent;padding:0}.routes span{padding:8px;border-radius:8px}.yes{background:#f0fbf9;color:#147b6a}.no{background:#fff5f3;color:#b24f42}.node-body{border-top:1px solid #edf1f3;padding:14px}.detail{padding:12px;border-radius:10px;background:#f7f9fa}.detail+ .detail{margin-top:10px}.detail b,.resource b{display:block;color:#708088;font-size:10px}.detail p{margin:5px 0 0;font-size:12px}.resources{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}.resource{padding:10px;border-radius:10px;background:#f5f7ff;border:1px solid #e0e5f5}.resource b{color:#4666b0}.resource span{display:block;margin-top:5px;color:#52616a;font-size:11px;line-height:1.5}.approval{margin-top:10px;color:#a45a08;font-size:10px;font-weight:700}.two-column{display:grid;grid-template-columns:1fr 1fr;gap:18px}.box{border:1px solid #dfe6e9;border-radius:12px;padding:14px}.box dl{display:grid;grid-template-columns:60px 1fr;gap:8px;margin:0;font-size:12px}.box dt{color:#168b78;font-weight:700}.box dd{margin:0;color:#52616a}.box ul{margin:0;padding-left:18px;color:#52616a;font-size:12px;line-height:1.8}.box li span{color:#8b989e;font-size:10px}.footer{margin-top:32px;padding-top:16px;border-top:1px solid #e7edef;color:#8a969c;font-size:10px;display:flex;justify-content:space-between}@media(max-width:700px){body{padding:0}.page{padding:28px 20px;border-radius:0}.summary,.two-column,.resources{grid-template-columns:1fr}.watermark{right:20px}.title{font-size:23px}}@media print{@page{size:A4;margin:14mm}body{padding:0;background:#fff}.page{max-width:none;padding:0;border-radius:0;box-shadow:none}.node{break-inside:avoid}.summary,section,.box{break-inside:avoid}.node details{display:block}.watermark{right:0;top:0}}
+  </style></head><body><article class="page"><div class="watermark">사내 전용</div><div class="brand">SOP CENTRAL · OFFICIAL COPY</div><h1 class="title">${escapeHtml(doc.title)}</h1><div class="meta">${escapeHtml(doc.id)} · ${escapeHtml(doc.version)} · ${escapeHtml(doc.status)} · 등록일 ${escapeHtml(doc.date)}</div><div class="summary"><div class="org"><span>적용 조직</span><strong>${escapeHtml(detail.organization)}</strong><p>${detail.includesChildren ? '해당 조직과 모든 하위 조직에 적용' : '지정된 조직·대상에만 적용'}</p></div><div class="metric"><span>SOP 적용 범위</span><strong>${escapeHtml(doc.scope)}</strong></div><div class="metric"><span>Agent 전환율</span><strong>${conversion === null ? '미평가' : `${conversion}%`}</strong></div></div><section><h2>01. 목적 및 적용 기준</h2><p>${escapeHtml(detail.purpose)}</p></section><section><h2>02. 절차 Workflow</h2><div class="workflow">${workflow}</div></section><section class="two-column"><div><h2>03. 첨부 문서</h2><div class="box"><ul>${attachments}</ul></div></div><div><h2>04. 책임 및 승인</h2><div class="box"><dl><dt>작성</dt><dd>${escapeHtml(detail.author)}</dd><dt>검토</dt><dd>${escapeHtml(detail.reviewer)}</dd><dt>승인</dt><dd>${escapeHtml(detail.approver)}</dd></dl></div></div></section><section><h2>05. 연관 문서 및 이력</h2><div class="box"><ul>${related}</ul><p>${escapeHtml(detail.revision)}</p></div></section><div class="footer"><span>출력일시 ${escapeHtml(generatedAt)}</span><span>${escapeHtml(doc.id)} · ${escapeHtml(doc.version)}</span></div></article></body></html>`;
+}
+
+function exportSopAsHtml(doc: SopDocument, detail: SopDetail) {
+  const blobUrl = URL.createObjectURL(new Blob([buildSopExportHtml(doc, detail)], { type: 'text/html;charset=utf-8' }));
+  const anchor = document.createElement('a');
+  anchor.href = blobUrl;
+  anchor.download = `${doc.id}_${doc.title.replace(/[\\/:*?"<>|]/g, '_')}.html`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+}
+
+function exportSopAsPdf(doc: SopDocument, detail: SopDetail) {
+  const printWindow = window.open('', '_blank', 'width=1100,height=850');
+  if (!printWindow) throw new Error('팝업이 차단되었습니다.');
+  printWindow.opener = null;
+  printWindow.document.open();
+  printWindow.document.write(buildSopExportHtml(doc, detail));
+  printWindow.document.close();
+  window.setTimeout(() => printWindow.print(), 400);
+}
+
 function getDivisionName(doc: SopDocument, detail?: SopDetail) {
   const areaMap: Record<string, string> = { Etch: '제조부문', CVD: '제조부문', Utility: '시설부문', 품질: '품질부문', 안전: 'EHS부문' };
   if (areaMap[doc.area]) return areaMap[doc.area];
@@ -1050,6 +1102,8 @@ function LibraryView({ items, details, editableIds, onCreate, onEdit, onApprove,
   const [scopeFilter, setScopeFilter] = useState('ALL');
   const [divisionFilter, setDivisionFilter] = useState('ALL');
   const [teamFilter, setTeamFilter] = useState('ALL');
+  const [exportFormat, setExportFormat] = useState<'pdf' | 'html'>('pdf');
+  const [exportError, setExportError] = useState('');
   const [detailId, setDetailId] = useState<string | null>(null);
   const [attachmentError, setAttachmentError] = useState('');
   const selected = items.find((doc) => doc.id === detailId) ?? null;
@@ -1107,7 +1161,7 @@ function LibraryView({ items, details, editableIds, onCreate, onEdit, onApprove,
                 <tr key={doc.id} onDoubleClick={() => setDetailId(doc.id)} className="group cursor-default select-none transition hover:bg-[#f0fbf9]">
                   <td className="px-5 py-4"><div className="flex items-center gap-3"><div className="grid size-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-400 group-hover:bg-[#dff7f2] group-hover:text-[#168b78]"><FileText className="size-4" /></div><div><p className="font-medium text-slate-800 group-hover:text-[#147b6a]">{doc.title}</p><p className="mt-1 font-mono text-[10px] text-slate-400">{doc.id}</p></div></div></td>
                   <td className="px-4 py-4"><ScopeBadge level={doc.scope} /></td><td className="px-4 py-4"><AgentConversionBadge rate={getAgentConversion(details[doc.id])} /></td><td className="px-4 py-4 text-sm text-slate-600">{doc.area}</td><td className="px-4 py-4 text-sm text-slate-600">{doc.owner}</td><td className="px-4 py-4 text-xs font-semibold text-slate-600">{doc.version}</td><td className="px-4 py-4 text-xs text-slate-500">{doc.date}</td><td className="px-4 py-4"><StatusBadge tone={doc.tone}>{doc.status}</StatusBadge></td>
-                  <td className="px-4 py-4"><Button onClick={() => { setAttachmentError(''); setDetailId(doc.id); }} variant="ghost" size="sm" className="text-[#168b78]"><Eye className="size-3.5" /> 상세 보기</Button></td>
+                  <td className="px-4 py-4"><Button onClick={() => { setAttachmentError(''); setExportError(''); setDetailId(doc.id); }} variant="ghost" size="sm" className="text-[#168b78]"><Eye className="size-3.5" /> 상세 보기</Button></td>
                 </tr>
               ))}
               {filtered.length === 0 && <tr><td colSpan={9} className="px-5 py-14 text-center text-sm text-slate-400">조건에 맞는 SOP가 없습니다.</td></tr>}
@@ -1154,7 +1208,7 @@ function LibraryView({ items, details, editableIds, onCreate, onEdit, onApprove,
               </section>
               <div className="grid gap-6 lg:grid-cols-2"><section><SectionTitle number="04" title="책임 및 승인" /><div className="space-y-2 rounded-xl border border-slate-200 p-4"><Responsibility label="작성" value={detail.author} /><Responsibility label="검토" value={detail.reviewer} /><Responsibility label="승인" value={detail.approver} /></div></section><section><SectionTitle number="05" title="연관 문서 및 이력" /><div className="space-y-2 rounded-xl border border-slate-200 p-4">{detail.related.map((item) => <div key={item} className="flex items-center gap-2 text-xs text-slate-600"><Link2 className="size-3.5 text-[#168b78]" /><span>{item}</span></div>)}<div className="mt-3 flex items-start gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500"><History className="mt-0.5 size-3.5 text-[#168b78]" /><span>{detail.revision}</span></div></div></section></div>
             </div>
-            <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 md:px-6"><span className="text-xs text-slate-400">첨부 문서 {detail.attachments?.length ?? 0}개</span><div className="flex flex-wrap justify-end gap-2">{editableIds.includes(selected.id) && <Button variant="outline" className="border-[#ff7a66]/40 text-[#b24f42] hover:bg-[#fff5f3]" onClick={() => { if (window.confirm(`'${selected.title}' SOP를 삭제하시겠습니까? 삭제한 문서와 첨부 파일은 복구할 수 없습니다.`)) { setDetailId(null); onDelete(selected.id); } }}><Trash2 className="size-4" /> 삭제</Button>}{editableIds.includes(selected.id) && <Button variant="outline" onClick={() => { setDetailId(null); onEdit({ doc: selected, detail }); }}><FileText className="size-4" /> {selected.tone === 'draft' ? '이어서 작성' : '수정'}</Button>}{editableIds.includes(selected.id) && selected.tone === 'review' && <Button className="bg-[#168b78] text-white hover:bg-[#147b6a]" onClick={() => { if (window.confirm(`'${selected.title}' SOP를 최종 승인하시겠습니까?`)) { setDetailId(null); onApprove(selected.id); } }}><CheckCircle2 className="size-4" /> 승인</Button>}<Button variant="outline">개정 이력</Button><Button onClick={() => setDetailId(null)} className="bg-[#102f3d] text-white">닫기</Button></div></footer>
+            <footer className="flex shrink-0 flex-col gap-3 border-t border-slate-100 bg-slate-50 px-5 py-4 md:flex-row md:items-center md:justify-between md:px-6"><div><span className="text-xs text-slate-400">첨부 문서 {detail.attachments?.length ?? 0}개</span>{exportError && <p role="alert" className="mt-1 text-[11px] font-medium text-[#b24f42]">{exportError}</p>}</div><div className="flex flex-wrap justify-end gap-2"><div className="flex overflow-hidden rounded-lg border border-slate-200 bg-white"><NativeSelect value={exportFormat} onChange={(event) => { setExportFormat(event.target.value as 'pdf' | 'html'); setExportError(''); }} aria-label="SOP 내보내기 형식" className="rounded-none border-0"><NativeSelectOption value="pdf">PDF</NativeSelectOption><NativeSelectOption value="html">HTML</NativeSelectOption></NativeSelect><Button type="button" className="rounded-l-none bg-[#168b78] text-white hover:bg-[#147b6a]" onClick={() => { setExportError(''); try { if (exportFormat === 'pdf') exportSopAsPdf(selected, detail); else exportSopAsHtml(selected, detail); } catch { setExportError(exportFormat === 'pdf' ? 'PDF 창을 열 수 없습니다. 브라우저의 팝업 차단을 해제해 주세요.' : 'HTML 파일을 생성할 수 없습니다.'); } }}><Download className="size-4" /> {exportFormat === 'pdf' ? 'PDF로 내보내기' : 'HTML 다운로드'}</Button></div>{editableIds.includes(selected.id) && <Button variant="outline" className="border-[#ff7a66]/40 text-[#b24f42] hover:bg-[#fff5f3]" onClick={() => { if (window.confirm(`'${selected.title}' SOP를 삭제하시겠습니까? 삭제한 문서와 첨부 파일은 복구할 수 없습니다.`)) { setDetailId(null); onDelete(selected.id); } }}><Trash2 className="size-4" /> 삭제</Button>}{editableIds.includes(selected.id) && <Button variant="outline" onClick={() => { setDetailId(null); onEdit({ doc: selected, detail }); }}><FileText className="size-4" /> {selected.tone === 'draft' ? '이어서 작성' : '수정'}</Button>}{editableIds.includes(selected.id) && selected.tone === 'review' && <Button className="bg-[#168b78] text-white hover:bg-[#147b6a]" onClick={() => { if (window.confirm(`'${selected.title}' SOP를 최종 승인하시겠습니까?`)) { setDetailId(null); onApprove(selected.id); } }}><CheckCircle2 className="size-4" /> 승인</Button>}<Button variant="outline">개정 이력</Button><Button onClick={() => setDetailId(null)} className="bg-[#102f3d] text-white">닫기</Button></div></footer>
           </section>
         </div>
       )}
