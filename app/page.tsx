@@ -59,6 +59,10 @@ type SopDetail = {
   steps: string[];
   stepAutomation?: Array<number | boolean>;
   humanApprovalRequired?: boolean[];
+  stepTypes?: WorkflowStepType[];
+  nextStepIndexes?: Array<number | null>;
+  yesBranchIndexes?: Array<number | null>;
+  noBranchIndexes?: Array<number | null>;
   author: string;
   reviewer: string;
   approver: string;
@@ -66,6 +70,8 @@ type SopDetail = {
   revision: string;
   attachments?: AttachmentMeta[];
 };
+
+type WorkflowStepType = 'action' | 'decision' | 'end';
 
 type AttachmentMeta = {
   id: string;
@@ -127,6 +133,10 @@ const sopDetails: Record<string, SopDetail> = {
     steps: ['이상 신호를 확인하고 관련 Lot과 장비를 즉시 Hold한다.', '품질 영향 범위와 최근 정상 시점을 확인한다.', '담당 엔지니어·품질보증·생산관리 조직에 동시에 통보한다.', '초기 분석 결과에 따라 생산 재개 또는 추가 격리를 결정한다.', '조치 결과와 재발방지 항목을 QMS에 기록한다.'],
     stepAutomation: [100, 75, 100, 50, 75],
     humanApprovalRequired: [true, true, false, true, true],
+    stepTypes: ['action', 'action', 'action', 'decision', 'end'],
+    nextStepIndexes: [1, 2, 3, null, null],
+    yesBranchIndexes: [null, null, null, 4, null],
+    noBranchIndexes: [null, null, null, 1, null],
     author: '박예린 · 품질혁신팀', reviewer: '김태윤 · 제조기술팀', approver: '오지훈 · 반도체부문장',
     related: ['QMS-HOLD-004 Lot Hold 관리', 'QMS-RCA-002 원인분석 기준'], revision: 'v3.0 · 전사 공통 보고시간 기준 반영',
   },
@@ -137,6 +147,10 @@ const sopDetails: Record<string, SopDetail> = {
     steps: ['가스 경보 확인 즉시 작업을 중지하고 인근 인원을 대피시킨다.', '비상 연락망으로 방재센터와 EHS 담당자에게 신고한다.', '허가된 대응 인력만 보호구를 착용하고 현장에 접근한다.', '가스 공급 차단과 배기 상태를 확인한다.', '안전 판정 후 원인 조사와 재가동 승인을 진행한다.'],
     stepAutomation: [100, 100, 0, 50, 25],
     humanApprovalRequired: [false, false, true, true, true],
+    stepTypes: ['action', 'action', 'action', 'decision', 'end'],
+    nextStepIndexes: [1, 2, 3, null, null],
+    yesBranchIndexes: [null, null, null, 4, null],
+    noBranchIndexes: [null, null, null, 1, null],
     author: '이도윤 · EHS팀', reviewer: '정가영 · 시설기술팀', approver: '강민석 · 제조부문장',
     related: ['EHS-EVA-001 비상대피 기준', 'FAC-GAS-005 가스 공급 차단 절차'], revision: 'v5.1 · 야간 비상 연락망 최신화',
   },
@@ -516,6 +530,10 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
   const [steps, setSteps] = useState(['']);
   const [stepAutomation, setStepAutomation] = useState([0]);
   const [humanApprovalRequired, setHumanApprovalRequired] = useState([true]);
+  const [stepTypes, setStepTypes] = useState<WorkflowStepType[]>(['action']);
+  const [nextStepIndexes, setNextStepIndexes] = useState<Array<number | null>>([null]);
+  const [yesBranchIndexes, setYesBranchIndexes] = useState<Array<number | null>>([null]);
+  const [noBranchIndexes, setNoBranchIndexes] = useState<Array<number | null>>([null]);
   const [owner, setOwner] = useState('한수민');
   const [reviewer, setReviewer] = useState('');
   const [approver, setApprover] = useState('');
@@ -548,12 +566,16 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
       setSteps(initialRecord.detail.steps.length ? initialRecord.detail.steps : ['']);
       setStepAutomation(initialRecord.detail.steps.length ? initialRecord.detail.steps.map((_, index) => automationRate(initialRecord.detail.stepAutomation?.[index])) : [0]);
       setHumanApprovalRequired(initialRecord.detail.steps.length ? initialRecord.detail.steps.map((_, index) => initialRecord.detail.humanApprovalRequired?.[index] ?? true) : [true]);
+      setStepTypes(initialRecord.detail.steps.length ? initialRecord.detail.steps.map((_, index) => initialRecord.detail.stepTypes?.[index] ?? 'action') : ['action']);
+      setNextStepIndexes(initialRecord.detail.steps.length ? initialRecord.detail.steps.map((_, index) => initialRecord.detail.nextStepIndexes?.[index] ?? (index < initialRecord.detail.steps.length - 1 ? index + 1 : null)) : [null]);
+      setYesBranchIndexes(initialRecord.detail.steps.length ? initialRecord.detail.steps.map((_, index) => initialRecord.detail.yesBranchIndexes?.[index] ?? null) : [null]);
+      setNoBranchIndexes(initialRecord.detail.steps.length ? initialRecord.detail.steps.map((_, index) => initialRecord.detail.noBranchIndexes?.[index] ?? null) : [null]);
       setOwner(initialRecord.doc.owner === '미지정' ? '' : initialRecord.doc.owner);
       setReviewer(initialRecord.detail.reviewer === '검토자 미지정' ? '' : initialRecord.detail.reviewer);
       setApprover(initialRecord.detail.approver === '승인자 미지정' ? '' : initialRecord.detail.approver);
       setExistingAttachments(initialRecord.detail.attachments ?? []);
     } else {
-      setTitle(''); setDocumentType('작업 표준서'); setScope('S2'); setOrganization(''); setIncludesChildren(true); setPurpose(''); setSteps(['']); setStepAutomation([0]); setHumanApprovalRequired([true]); setOwner('한수민'); setReviewer(''); setApprover(''); setExistingAttachments([]);
+      setTitle(''); setDocumentType('작업 표준서'); setScope('S2'); setOrganization(''); setIncludesChildren(true); setPurpose(''); setSteps(['']); setStepAutomation([0]); setHumanApprovalRequired([true]); setStepTypes(['action']); setNextStepIndexes([null]); setYesBranchIndexes([null]); setNoBranchIndexes([null]); setOwner('한수민'); setReviewer(''); setApprover(''); setExistingAttachments([]);
     }
     setAttachments([]); setError(''); setTypeInputOpen(false); setNewDocumentType('');
   }, [open, initialRecord]);
@@ -563,9 +585,24 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
   const updateStep = (index: number, value: string) => setSteps((current) => current.map((step, stepIndex) => stepIndex === index ? value : step));
   const removeStep = (index: number) => {
     if (steps.length === 1) return;
+    const shiftTarget = (target: number | null) => target === null || target === index ? null : target > index ? target - 1 : target;
     setSteps((current) => current.filter((_, stepIndex) => stepIndex !== index));
     setStepAutomation((current) => current.filter((_, stepIndex) => stepIndex !== index));
     setHumanApprovalRequired((current) => current.filter((_, stepIndex) => stepIndex !== index));
+    setStepTypes((current) => current.filter((_, stepIndex) => stepIndex !== index));
+    setNextStepIndexes((current) => current.filter((_, stepIndex) => stepIndex !== index).map(shiftTarget));
+    setYesBranchIndexes((current) => current.filter((_, stepIndex) => stepIndex !== index).map(shiftTarget));
+    setNoBranchIndexes((current) => current.filter((_, stepIndex) => stepIndex !== index).map(shiftTarget));
+  };
+  const addWorkflowStep = () => {
+    const newIndex = steps.length;
+    setSteps((current) => [...current, '']);
+    setStepAutomation((current) => [...current, 0]);
+    setHumanApprovalRequired((current) => [...current, true]);
+    setStepTypes((current) => [...current, 'action']);
+    setNextStepIndexes((current) => current.map((target, index) => index === newIndex - 1 && stepTypes[index] === 'action' && target === null ? newIndex : target).concat(null));
+    setYesBranchIndexes((current) => [...current, null]);
+    setNoBranchIndexes((current) => [...current, null]);
   };
   const addDocumentType = () => {
     const nextType = newDocumentType.trim();
@@ -578,8 +615,10 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
     try { window.localStorage.setItem('sop-central-document-types', JSON.stringify(nextTypes)); } catch { /* no-op */ }
   };
   const save = async (submitForApproval: boolean) => {
-    const cleanStepEntries = steps.map((step, index) => ({ text: step.trim(), automationRate: stepAutomation[index] ?? 0, humanApproval: humanApprovalRequired[index] ?? true })).filter((entry) => entry.text);
+    const cleanStepEntries = steps.map((step, index) => ({ originalIndex: index, text: step.trim(), automationRate: stepAutomation[index] ?? 0, humanApproval: humanApprovalRequired[index] ?? true, type: stepTypes[index] ?? 'action', next: nextStepIndexes[index] ?? null, yes: yesBranchIndexes[index] ?? null, no: noBranchIndexes[index] ?? null })).filter((entry) => entry.text);
     const cleanSteps = cleanStepEntries.map((entry) => entry.text);
+    const indexMap = new Map(cleanStepEntries.map((entry, index) => [entry.originalIndex, index]));
+    const remapTarget = (target: number | null) => target === null ? null : indexMap.get(target) ?? null;
     if (!title.trim()) {
       setError('임시 저장하려면 SOP 제목을 입력해 주세요.');
       return;
@@ -613,6 +652,10 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
         steps: cleanSteps,
         stepAutomation: cleanStepEntries.map((entry) => entry.automationRate),
         humanApprovalRequired: cleanStepEntries.map((entry) => entry.humanApproval),
+        stepTypes: cleanStepEntries.map((entry) => entry.type),
+        nextStepIndexes: cleanStepEntries.map((entry) => remapTarget(entry.next)),
+        yesBranchIndexes: cleanStepEntries.map((entry) => remapTarget(entry.yes)),
+        noBranchIndexes: cleanStepEntries.map((entry) => remapTarget(entry.no)),
         author: `${owner.trim() || '미지정'} · 작성자`,
         reviewer: reviewer.trim() || '검토자 미지정',
         approver: approver.trim() || '승인자 미지정',
@@ -622,7 +665,7 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
       },
     };
       onSave(record, submitForApproval);
-      setTitle(''); setDocumentType('작업 표준서'); setScope('S2'); setOrganization(''); setIncludesChildren(true); setPurpose(''); setSteps(['']); setStepAutomation([0]); setHumanApprovalRequired([true]); setReviewer(''); setApprover(''); setAttachments([]); setExistingAttachments([]); setError('');
+      setTitle(''); setDocumentType('작업 표준서'); setScope('S2'); setOrganization(''); setIncludesChildren(true); setPurpose(''); setSteps(['']); setStepAutomation([0]); setHumanApprovalRequired([true]); setStepTypes(['action']); setNextStepIndexes([null]); setYesBranchIndexes([null]); setNoBranchIndexes([null]); setReviewer(''); setApprover(''); setAttachments([]); setExistingAttachments([]); setError('');
     } catch {
       setError('첨부 파일 저장 중 오류가 발생했습니다. 파일을 다시 선택해 주세요.');
     } finally {
@@ -677,13 +720,31 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
               </section>
 
               <section>
-                <div className="mb-3 flex items-center justify-between"><SectionTitle number="03" title="표준 작업 절차" /><Button onClick={() => { setSteps((current) => [...current, '']); setStepAutomation((current) => [...current, 0]); setHumanApprovalRequired((current) => [...current, true]); }} variant="outline" size="sm"><Plus className="size-3.5" /> 단계 추가</Button></div>
+                <div className="mb-3 flex items-center justify-between"><div><SectionTitle number="03" title="절차 Workflow" /><p className="-mt-1 text-[11px] text-slate-400">모든 문서 유형의 절차를 작업·조건 분기·종료 노드로 구성합니다.</p></div><Button onClick={addWorkflowStep} variant="outline" size="sm"><Plus className="size-3.5" /> 노드 추가</Button></div>
                 <div className="space-y-3">
                   {steps.map((step, index) => (
                     <div key={index} className="grid grid-cols-[30px_1fr_32px] items-start gap-2 rounded-xl bg-slate-50 p-3">
                       <span className="grid size-7 place-items-center rounded-lg bg-[#102f3d] text-[11px] font-bold text-white">{index + 1}</span>
                       <div>
-                        <Textarea value={step} onChange={(event) => updateStep(index, event.target.value)} className="min-h-16 bg-white" placeholder={`${index + 1}단계 작업 내용과 확인 기준`} />
+                        <div className="mb-2 flex items-center gap-2">
+                          <select value={stepTypes[index] ?? 'action'} onChange={(event) => setStepTypes((current) => current.map((value, stepIndex) => stepIndex === index ? event.target.value as WorkflowStepType : value))} className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 outline-none focus:border-[#35d0ba]">
+                            <option value="action">작업 노드</option><option value="decision">조건 분기</option><option value="end">종료 노드</option>
+                          </select>
+                          <span className="text-[10px] text-slate-400">{index === 0 ? '시작 노드' : `노드 ${index + 1}`}</span>
+                        </div>
+                        <Textarea value={step} onChange={(event) => updateStep(index, event.target.value)} className="min-h-16 bg-white" placeholder={stepTypes[index] === 'decision' ? '예: 측정값이 관리 기준 이내인가?' : `${index + 1}단계 작업 내용과 확인 기준`} />
+                        <div className="mt-2 rounded-lg border border-[#4666b0]/20 bg-[#f5f7ff] p-3">
+                          {stepTypes[index] === 'decision' ? (
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <label><span className="mb-1 block text-[10px] font-semibold text-[#147b6a]">조건 충족(YES)</span><select value={yesBranchIndexes[index] ?? ''} onChange={(event) => setYesBranchIndexes((current) => current.map((value, stepIndex) => stepIndex === index ? (event.target.value === '' ? null : Number(event.target.value)) : value))} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs"><option value="">Workflow 종료</option>{steps.map((_, targetIndex) => targetIndex !== index && <option key={targetIndex} value={targetIndex}>노드 {targetIndex + 1}</option>)}</select></label>
+                              <label><span className="mb-1 block text-[10px] font-semibold text-[#b24f42]">조건 미충족(NO)</span><select value={noBranchIndexes[index] ?? ''} onChange={(event) => setNoBranchIndexes((current) => current.map((value, stepIndex) => stepIndex === index ? (event.target.value === '' ? null : Number(event.target.value)) : value))} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs"><option value="">Workflow 종료</option>{steps.map((_, targetIndex) => targetIndex !== index && <option key={targetIndex} value={targetIndex}>노드 {targetIndex + 1}</option>)}</select></label>
+                            </div>
+                          ) : stepTypes[index] === 'end' ? (
+                            <p className="text-[11px] font-medium text-slate-500">이 노드에서 Workflow가 종료됩니다.</p>
+                          ) : (
+                            <label className="flex items-center gap-2"><span className="text-[10px] font-semibold text-slate-500">다음 연결</span><select value={nextStepIndexes[index] ?? ''} onChange={(event) => setNextStepIndexes((current) => current.map((value, stepIndex) => stepIndex === index ? (event.target.value === '' ? null : Number(event.target.value)) : value))} className="h-9 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 text-xs"><option value="">Workflow 종료</option>{steps.map((_, targetIndex) => targetIndex !== index && <option key={targetIndex} value={targetIndex}>노드 {targetIndex + 1}</option>)}</select></label>
+                          )}
+                        </div>
                         <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
                           <div className="mb-2 flex items-center justify-between"><span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600"><Sparkles className="size-3.5 text-[#168b78]" /> Agent 대행률</span><strong className="text-sm text-[#147b6a]">{stepAutomation[index] ?? 0}%</strong></div>
                           <div className="grid grid-cols-5 gap-1">
@@ -702,6 +763,7 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
                   <div className="grid size-10 place-items-center rounded-full bg-white text-sm font-bold text-[#147b6a] shadow-sm">{steps.filter((step) => step.trim()).length ? Math.round(steps.reduce((sum, step, index) => sum + (step.trim() ? stepAutomation[index] ?? 0 : 0), 0) / steps.filter((step) => step.trim()).length) : 0}%</div>
                   <div><p className="text-xs font-semibold text-slate-700">예상 Agent 전환율</p><p className="mt-0.5 text-[10px] text-slate-500">작성된 단계별 Agent 대행률의 평균</p></div>
                 </div>
+                <div className="mt-4"><WorkflowDiagram steps={steps} stepTypes={stepTypes} nextStepIndexes={nextStepIndexes} yesBranchIndexes={yesBranchIndexes} noBranchIndexes={noBranchIndexes} stepAutomation={stepAutomation} humanApprovalRequired={humanApprovalRequired} compact /></div>
               </section>
 
               <section>
@@ -858,11 +920,7 @@ function LibraryView({ items, details, onCreate, onEdit }: { items: SopDocument[
             <div className="overflow-y-auto p-5 md:p-6">
               <section className="mb-6 grid gap-3 rounded-2xl border border-[#35d0ba]/25 bg-[#f0fbf9] p-4 md:grid-cols-[1fr_auto_auto] md:items-center"><div><div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[#147b6a]"><Building2 className="size-4" /> 적용 조직</div><p className="text-sm font-semibold text-slate-800">{detail.organization}</p><p className="mt-1 text-xs text-slate-500">{detail.includesChildren ? '해당 조직과 모든 하위 조직에 적용' : '지정된 조직·대상에만 적용'}</p></div><div className="rounded-xl bg-white px-4 py-3 text-center shadow-sm ring-1 ring-[#35d0ba]/20"><span className="block text-[10px] text-slate-400">SOP 적용 범위</span><strong className="mt-1 block text-xl text-[#147b6a]">{selected.scope}</strong></div><div className="rounded-xl bg-[#102f3d] px-4 py-3 text-center text-white shadow-sm"><span className="block text-[10px] text-slate-300">Agent 전환율</span><strong className="mt-1 block text-xl">{getAgentConversion(detail) === null ? '미평가' : `${getAgentConversion(detail)}%`}</strong></div></section>
               <section className="mb-7"><SectionTitle number="01" title="목적 및 적용 기준" /><p className="text-sm leading-7 text-slate-600">{detail.purpose}</p></section>
-              <section className="mb-7"><SectionTitle number="02" title="표준 작업 절차" /><ol className="space-y-3">{detail.steps.map((step, index) => {
-                const rate = automationRate(detail.stepAutomation?.[index]);
-                const assessed = Boolean(detail.stepAutomation);
-                return <li key={step} className="grid grid-cols-[30px_1fr_auto] items-start gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600"><span className="grid size-7 place-items-center rounded-lg bg-[#102f3d] text-[11px] font-bold text-white">{index + 1}</span><span>{step}</span><div className="flex flex-col items-end gap-1"><span className={`mt-0.5 flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold ${assessed && rate > 0 ? 'bg-[#def7ef] text-[#147b6a]' : 'bg-slate-200 text-slate-500'}`}><Sparkles className="size-3" />{assessed ? `Agent ${rate}%` : '미평가'}</span>{assessed && <span className={`rounded-full px-2.5 py-0.5 text-[9px] font-semibold ${detail.humanApprovalRequired?.[index] ?? true ? 'bg-[#fff1dd] text-[#a45a08]' : 'bg-white text-slate-400 ring-1 ring-slate-200'}`}>{detail.humanApprovalRequired?.[index] ?? true ? '사람 승인 필수' : '사람 승인 불필요'}</span>}</div></li>;
-              })}</ol></section>
+              <section className="mb-7"><SectionTitle number="02" title="절차 Workflow" /><WorkflowDiagram steps={detail.steps} stepTypes={detail.stepTypes} nextStepIndexes={detail.nextStepIndexes} yesBranchIndexes={detail.yesBranchIndexes} noBranchIndexes={detail.noBranchIndexes} stepAutomation={detail.stepAutomation} humanApprovalRequired={detail.humanApprovalRequired} /></section>
               <section className="mb-7">
                 <SectionTitle number="03" title="첨부 문서" />
                 {detail.attachments?.length ? (
@@ -894,6 +952,55 @@ function LibraryView({ items, details, onCreate, onEdit }: { items: SopDocument[
           </section>
         </div>
       )}
+    </div>
+  );
+}
+
+function WorkflowDiagram({ steps, stepTypes, nextStepIndexes, yesBranchIndexes, noBranchIndexes, stepAutomation, humanApprovalRequired, compact = false }: {
+  steps: string[];
+  stepTypes?: WorkflowStepType[];
+  nextStepIndexes?: Array<number | null>;
+  yesBranchIndexes?: Array<number | null>;
+  noBranchIndexes?: Array<number | null>;
+  stepAutomation?: Array<number | boolean>;
+  humanApprovalRequired?: boolean[];
+  compact?: boolean;
+}) {
+  const targetLabel = (target: number | null | undefined) => target === null || target === undefined ? '종료' : `노드 ${target + 1}`;
+  return (
+    <div className={`rounded-2xl border border-slate-200 bg-slate-50/70 ${compact ? 'p-3' : 'p-4 md:p-5'}`}>
+      <div className="mb-4 flex items-center justify-between gap-3"><div className="flex items-center gap-2 text-xs font-semibold text-[#4666b0]"><GitBranch className="size-4" /> Workflow 순서도</div><span className="text-[10px] text-slate-400">{steps.length}개 노드</span></div>
+      <div className="mx-auto max-w-2xl">
+        <div className="mx-auto w-fit rounded-full bg-[#102f3d] px-4 py-1.5 text-[10px] font-bold text-white">START</div>
+        <div className="mx-auto h-5 w-px bg-slate-300" />
+        <div className="space-y-3">
+          {steps.map((step, index) => {
+            const type = stepTypes?.[index] ?? 'action';
+            const rate = automationRate(stepAutomation?.[index]);
+            const assessed = Boolean(stepAutomation);
+            const isDecision = type === 'decision';
+            const nextTarget = nextStepIndexes ? nextStepIndexes[index] : (index < steps.length - 1 ? index + 1 : null);
+            return (
+              <div key={`${index}-${step}`}>
+                <div className={`mx-auto border bg-white shadow-sm ${isDecision ? 'max-w-xl border-[#ffbd59] ring-2 ring-[#fff1dd]' : type === 'end' ? 'max-w-md rounded-full border-slate-300' : 'max-w-xl rounded-xl border-slate-200'}`}>
+                  <div className="flex items-start gap-3 p-3">
+                    <span className={`grid size-8 shrink-0 place-items-center text-[11px] font-bold ${isDecision ? 'rotate-45 rounded-md bg-[#fff1dd] text-[#a45a08]' : type === 'end' ? 'rounded-full bg-slate-200 text-slate-600' : 'rounded-lg bg-[#e9efff] text-[#4666b0]'}`}><span className={isDecision ? '-rotate-45' : ''}>{index + 1}</span></span>
+                    <div className="min-w-0 flex-1"><div className="mb-1 flex flex-wrap items-center gap-1.5"><span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{isDecision ? '조건 분기' : type === 'end' ? '종료' : index === 0 ? '시작 작업' : '작업'}</span>{assessed && <span className="rounded-full bg-[#def7ef] px-2 py-0.5 text-[9px] font-semibold text-[#147b6a]">Agent {rate}%</span>}{assessed && (humanApprovalRequired?.[index] ?? true) && <span className="rounded-full bg-[#fff1dd] px-2 py-0.5 text-[9px] font-semibold text-[#a45a08]">사람 승인</span>}</div><p className={`${compact ? 'text-xs' : 'text-sm'} leading-5 text-slate-700`}>{step.trim() || '내용 미입력'}</p></div>
+                  </div>
+                </div>
+                {isDecision ? (
+                  <div className="mx-auto grid max-w-xl grid-cols-2 gap-3 pt-2">
+                    <div className="rounded-lg border border-[#35d0ba]/30 bg-[#f0fbf9] px-3 py-2 text-center text-[10px] font-semibold text-[#147b6a]">YES → {targetLabel(yesBranchIndexes?.[index])}</div>
+                    <div className="rounded-lg border border-[#ff7a66]/25 bg-[#fff5f3] px-3 py-2 text-center text-[10px] font-semibold text-[#b24f42]">NO → {targetLabel(noBranchIndexes?.[index])}</div>
+                  </div>
+                ) : type !== 'end' && (
+                  <div className="flex items-center justify-center gap-1 py-2 text-[10px] font-medium text-slate-400"><ChevronRight className="size-3.5 rotate-90" /> {targetLabel(nextTarget)}</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
