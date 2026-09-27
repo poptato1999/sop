@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   ChevronRight,
   ClipboardCheck,
-  FileClock,
   FilePlus2,
   FileText,
   Eye,
@@ -29,7 +28,6 @@ import {
   ShieldCheck,
   Sparkles,
   UserCheck,
-  UsersRound,
   Trash2,
   X,
 } from 'lucide-react';
@@ -83,13 +81,6 @@ type AttachmentMeta = {
 
 type CreatedSop = { doc: SopDocument; detail: SopDetail };
 
-const stats = [
-  { label: '전체 SOP', value: '1,284', note: '이번 달 +24', icon: BookOpenCheck },
-  { label: '승인 대기', value: '18', note: '내 결재 5건', icon: ClipboardCheck },
-  { label: '검토 기한 임박', value: '12', note: '7일 이내', icon: FileClock },
-  { label: '교육 이수율', value: '94.2%', note: '목표 95%', icon: UsersRound },
-];
-
 const documents = [
   { id: 'FAB-ETCH-024', title: 'Dry Etcher Chamber PM 작업 표준', area: 'Etch', scope: 'S4', owner: '김서준', version: 'v4.2', date: '2026.09.24', status: '승인 완료', tone: 'approved' },
   { id: 'QMS-INC-011', title: '공정 이상 발생 시 초기 대응 절차', area: '품질', scope: 'S1', owner: '박예린', version: 'v3.0', date: '2026.09.23', status: '검토 중', tone: 'review' },
@@ -103,8 +94,6 @@ const nav = [
   { id: 'scope', label: 'SOP 적용체계', icon: Layers3 },
   { id: 'library', label: 'SOP 라이브러리', icon: BookOpenCheck },
   { id: 'approval', label: '검토·승인', icon: ClipboardCheck },
-  { id: 'training', label: '교육 관리', icon: UsersRound },
-  { id: 'audit', label: '감사·이력', icon: ShieldCheck },
 ];
 
 const scopeLevels = [
@@ -258,6 +247,13 @@ function getAgentConversion(detail?: SopDetail) {
   return Math.round(totalRate / detail.steps.length);
 }
 
+function getDivisionName(doc: SopDocument, detail?: SopDetail) {
+  const areaMap: Record<string, string> = { Etch: '제조부문', CVD: '제조부문', Utility: '시설부문', 품질: '품질부문', 안전: 'EHS부문' };
+  if (areaMap[doc.area]) return areaMap[doc.area];
+  const root = detail?.organization.split('>')[0]?.trim().replace(/\s*전체$/, '');
+  return root || '기타부문';
+}
+
 export default function Home() {
   const [activeView, setActiveView] = useState('library');
   const [query, setQuery] = useState('');
@@ -275,6 +271,29 @@ export default function Home() {
   }, []);
   const allDocuments = [...createdSops.map((item) => item.doc), ...documents];
   const allDetails = { ...sopDetails, ...Object.fromEntries(createdSops.map((item) => [item.doc.id, item.detail])) };
+  const assessedRates = allDocuments.map((doc) => getAgentConversion(allDetails[doc.id])).filter((rate): rate is number => rate !== null);
+  const overallAgentConversion = assessedRates.length ? Math.round(assessedRates.reduce((sum, rate) => sum + rate, 0) / assessedRates.length) : 0;
+  const dashboardStats = [
+    { label: '전체 SOP', value: allDocuments.length.toLocaleString(), note: `승인 완료 ${allDocuments.filter((doc) => doc.tone === 'approved').length}건`, icon: BookOpenCheck },
+    { label: '승인 대기', value: allDocuments.filter((doc) => doc.tone === 'review').length.toLocaleString(), note: '검토·승인 필요', icon: ClipboardCheck },
+    { label: 'Agent 전환율', value: `${overallAgentConversion}%`, note: `평가 완료 ${assessedRates.length}건`, icon: Sparkles },
+    { label: 'Workflow 노드', value: Object.values(allDetails).reduce((sum, detail) => sum + detail.steps.length, 0).toLocaleString(), note: '전체 절차 단계', icon: GitBranch },
+  ];
+  const divisionStatus = Array.from(allDocuments.reduce((map, doc) => {
+    const detail = allDetails[doc.id];
+    const division = getDivisionName(doc, detail);
+    const current = map.get(division) ?? { name: division, total: 0, approved: 0, review: 0, rates: [] as number[] };
+    current.total += 1;
+    if (doc.tone === 'approved') current.approved += 1;
+    if (doc.tone === 'review') current.review += 1;
+    const rate = getAgentConversion(detail);
+    if (rate !== null) current.rates.push(rate);
+    map.set(division, current);
+    return map;
+  }, new Map<string, { name: string; total: number; approved: number; review: number; rates: number[] }>()).values()).map((division) => ({
+    ...division,
+    conversion: division.rates.length ? Math.round(division.rates.reduce((sum, rate) => sum + rate, 0) / division.rates.length) : 0,
+  })).sort((a, b) => b.total - a.total);
   const openNewSop = () => { setEditingSop(null); setDraftOpen(true); };
   const handleSaveSop = (record: CreatedSop, submitted: boolean) => {
     setCreatedSops((current) => {
@@ -324,14 +343,14 @@ export default function Home() {
   };
   const filteredDocuments = useMemo(() => {
     const keyword = query.trim().toLowerCase();
-    if (!keyword) return documents;
-    return documents.filter((doc) =>
+    if (!keyword) return allDocuments;
+    return allDocuments.filter((doc) =>
       [doc.id, doc.title, doc.area, doc.scope, doc.owner, doc.status]
         .join(' ')
         .toLowerCase()
         .includes(keyword),
     );
-  }, [query]);
+  }, [query, createdSops]);
 
   return (
     <main className="min-h-screen bg-[#f3f6f8] text-[#142129]">
@@ -417,7 +436,7 @@ export default function Home() {
                 전사 SOP 상태 정상
               </div>
               <h2 className="text-2xl font-semibold tracking-[-0.03em] md:text-3xl">안녕하세요, 한수민님</h2>
-              <p className="mt-2 text-sm text-slate-500">오늘 처리할 승인 5건과 검토 기한 임박 문서 12건이 있습니다.</p>
+              <p className="mt-2 text-sm text-slate-500">전사 SOP와 부문별 Agent 전환 현황을 한눈에 확인하세요.</p>
             </div>
             <Button onClick={openNewSop} size="lg" className="h-11 self-start bg-[#102f3d] px-4 text-white hover:bg-[#174556] xl:self-auto">
               <FilePlus2 className="size-4" /> 새 SOP 작성
@@ -425,7 +444,7 @@ export default function Home() {
           </section>
 
           <div className="mb-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {stats.map((stat, index) => {
+            {dashboardStats.map((stat, index) => {
               const Icon = stat.icon;
               return (
                 <Card key={stat.label} className="border-0 bg-white py-0 shadow-[0_6px_24px_rgba(23,42,54,.06)] ring-slate-200/70">
@@ -445,6 +464,23 @@ export default function Home() {
               );
             })}
           </div>
+
+          <Card className="mb-7 border-0 bg-white py-0 shadow-[0_8px_30px_rgba(23,42,54,.06)] ring-slate-200/70">
+            <CardHeader className="border-b border-slate-100 p-5 md:flex md:flex-row md:items-center md:justify-between">
+              <div><CardTitle className="flex items-center gap-2 text-lg font-semibold"><Building2 className="size-5 text-[#168b78]" /> 부문별 SOP 현황</CardTitle><p className="mt-1 text-xs text-slate-500">전체 현황 아래에서 부문별 문서 상태와 Agent 전환율을 비교합니다.</p></div>
+              <div className="mt-3 flex items-center gap-3 rounded-xl bg-[#102f3d] px-4 py-2.5 text-white md:mt-0"><Sparkles className="size-4 text-[#65e4d2]" /><div><span className="block text-[9px] text-slate-300">전사 평균 전환율</span><strong className="text-lg">{overallAgentConversion}%</strong></div></div>
+            </CardHeader>
+            <CardContent className="overflow-x-auto p-0">
+              <table className="w-full min-w-[760px] text-left">
+                <thead className="border-b border-slate-100 bg-slate-50/70 text-[11px] uppercase tracking-wider text-slate-400"><tr><th className="px-5 py-3.5 font-semibold">부문</th><th className="px-4 py-3.5 font-semibold">전체 SOP</th><th className="px-4 py-3.5 font-semibold">승인 완료</th><th className="px-4 py-3.5 font-semibold">승인 대기</th><th className="px-4 py-3.5 font-semibold">Agent 전환율</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {divisionStatus.map((division) => (
+                    <tr key={division.name} className="hover:bg-[#f4fbf9]"><td className="px-5 py-4"><div className="flex items-center gap-3"><div className="grid size-9 place-items-center rounded-lg bg-[#e1f7f3] text-[#147b6a]"><Building2 className="size-4" /></div><strong className="text-sm text-slate-800">{division.name}</strong></div></td><td className="px-4 py-4 text-sm font-semibold text-slate-700">{division.total}</td><td className="px-4 py-4 text-sm text-[#147b6a]">{division.approved}</td><td className="px-4 py-4 text-sm text-[#a45a08]">{division.review}</td><td className="px-4 py-4"><AgentConversionBadge rate={division.conversion} /></td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
 
           <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_340px]">
             <Card className="border-0 bg-white py-0 shadow-[0_8px_30px_rgba(23,42,54,.06)] ring-slate-200/70">
@@ -506,20 +542,21 @@ export default function Home() {
                   <div className="mb-5 flex items-center justify-between">
                     <div>
                       <p className="text-xs font-semibold text-[#65e4d2]">내 승인함</p>
-                      <p className="mt-1 text-xl font-semibold">우선 처리 5건</p>
+                      <p className="mt-1 text-xl font-semibold">승인 대기 {createdSops.filter((record) => record.doc.tone === 'review').length}건</p>
                     </div>
                     <div className="grid size-10 place-items-center rounded-xl bg-white/10"><ClipboardCheck className="size-5 text-[#65e4d2]" /></div>
                   </div>
                   <div className="space-y-2">
-                    {['Photo 공정 Defect Map 판정 기준', 'Scrubber 점검 및 교체 절차', 'Lot Hold 해제 승인 기준'].map((item, index) => (
-                      <button key={item} className="flex w-full items-center gap-3 rounded-xl bg-white/[.06] p-3 text-left transition hover:bg-white/10">
+                    {createdSops.filter((record) => record.doc.tone === 'review').slice(0, 3).map((record, index) => (
+                      <button key={record.doc.id} onClick={() => setActiveView('approval')} className="flex w-full items-center gap-3 rounded-xl bg-white/[.06] p-3 text-left transition hover:bg-white/10">
                         <span className={`size-2 rounded-full ${index === 0 ? 'bg-[#ffbd59]' : 'bg-[#35d0ba]'}`} />
-                        <span className="min-w-0 flex-1 truncate text-xs text-slate-200">{item}</span>
+                        <span className="min-w-0 flex-1 truncate text-xs text-slate-200">{record.doc.title}</span>
                         <ChevronRight className="size-3.5 text-slate-500" />
                       </button>
                     ))}
+                    {createdSops.filter((record) => record.doc.tone === 'review').length === 0 && <p className="rounded-xl bg-white/[.06] p-4 text-center text-xs text-slate-400">승인 대기 문서가 없습니다.</p>}
                   </div>
-                  <Button variant="ghost" className="mt-3 w-full text-[#65e4d2] hover:bg-white/10 hover:text-white">승인함 전체 보기</Button>
+                  <Button onClick={() => setActiveView('approval')} variant="ghost" className="mt-3 w-full text-[#65e4d2] hover:bg-white/10 hover:text-white">승인함 전체 보기</Button>
                 </CardContent>
               </Card>
 
