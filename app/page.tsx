@@ -152,6 +152,7 @@ const sopDetails: Record<string, SopDetail> = {
 
 const attachmentDatabase = 'sop-central-files';
 const attachmentStore = 'attachments';
+const defaultDocumentTypes = ['작업 표준서', '이상 대응 절차', '안전 절차', '검사 기준서', '관리 기준서'];
 
 function openAttachmentDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -462,6 +463,9 @@ export default function Home() {
 function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose: () => void; onSave: (record: CreatedSop) => void }) {
   const [title, setTitle] = useState('');
   const [documentType, setDocumentType] = useState('작업 표준서');
+  const [documentTypes, setDocumentTypes] = useState(defaultDocumentTypes);
+  const [typeInputOpen, setTypeInputOpen] = useState(false);
+  const [newDocumentType, setNewDocumentType] = useState('');
   const [scope, setScope] = useState('S2');
   const [organization, setOrganization] = useState('');
   const [includesChildren, setIncludesChildren] = useState(true);
@@ -474,10 +478,32 @@ function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose:
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('sop-central-document-types');
+      if (saved) {
+        const customTypes = JSON.parse(saved) as string[];
+        setDocumentTypes(Array.from(new Set([...defaultDocumentTypes, ...customTypes])));
+      }
+    } catch {
+      // Keep the default document types when browser storage is unavailable.
+    }
+  }, []);
+
   if (!open) return null;
 
   const updateStep = (index: number, value: string) => setSteps((current) => current.map((step, stepIndex) => stepIndex === index ? value : step));
   const removeStep = (index: number) => setSteps((current) => current.length === 1 ? current : current.filter((_, stepIndex) => stepIndex !== index));
+  const addDocumentType = () => {
+    const nextType = newDocumentType.trim();
+    if (!nextType) return;
+    const nextTypes = documentTypes.includes(nextType) ? documentTypes : [...documentTypes, nextType];
+    setDocumentTypes(nextTypes);
+    setDocumentType(nextType);
+    setNewDocumentType('');
+    setTypeInputOpen(false);
+    try { window.localStorage.setItem('sop-central-document-types', JSON.stringify(nextTypes)); } catch { /* no-op */ }
+  };
   const save = async (submitForApproval: boolean) => {
     const cleanSteps = steps.map((step) => step.trim()).filter(Boolean);
     if (!title.trim() || !organization.trim() || !purpose.trim() || cleanSteps.length === 0) {
@@ -539,7 +565,28 @@ function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose:
                 <SectionTitle number="01" title="기본 정보" />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="sm:col-span-2"><span className="mb-1.5 block text-xs font-semibold text-slate-600">SOP 제목 *</span><Input value={title} onChange={(event) => setTitle(event.target.value)} className="h-10" placeholder="예: PECVD 장비 Recipe 변경 관리" /></label>
-                  <label><span className="mb-1.5 block text-xs font-semibold text-slate-600">문서 유형</span><select value={documentType} onChange={(event) => setDocumentType(event.target.value)} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[#35d0ba] focus:ring-2 focus:ring-[#35d0ba]/20"><option>작업 표준서</option><option>이상 대응 절차</option><option>안전 절차</option><option>검사 기준서</option><option>관리 기준서</option></select></label>
+                  <div>
+                    <span className="mb-1.5 block text-xs font-semibold text-slate-600">문서 유형</span>
+                    <div className="flex gap-2">
+                      <select value={documentType} onChange={(event) => setDocumentType(event.target.value)} className="h-10 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[#35d0ba] focus:ring-2 focus:ring-[#35d0ba]/20">
+                        {documentTypes.map((type) => <option key={type}>{type}</option>)}
+                      </select>
+                      <Button type="button" variant="outline" className="h-10 shrink-0 px-3" onClick={() => setTypeInputOpen((current) => !current)}><Plus className="size-3.5" /> 유형 추가</Button>
+                    </div>
+                    {typeInputOpen && (
+                      <div className="mt-2 flex gap-2 rounded-xl border border-[#35d0ba]/25 bg-[#f0fbf9] p-2">
+                        <Input
+                          autoFocus
+                          value={newDocumentType}
+                          onChange={(event) => setNewDocumentType(event.target.value)}
+                          onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addDocumentType(); } }}
+                          className="h-9 bg-white"
+                          placeholder="예: 설비 점검서"
+                        />
+                        <Button type="button" onClick={addDocumentType} disabled={!newDocumentType.trim()} className="h-9 bg-[#168b78] text-white hover:bg-[#147b6a]">추가</Button>
+                      </div>
+                    )}
+                  </div>
                   <label><span className="mb-1.5 block text-xs font-semibold text-slate-600">작성자</span><Input value={owner} onChange={(event) => setOwner(event.target.value)} className="h-10" /></label>
                 </div>
               </section>
