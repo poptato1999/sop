@@ -1183,7 +1183,8 @@ function WorkflowDiagram({ steps, stepTypes, nextStepIndexes, yesBranchIndexes, 
   return (
     <div className={`rounded-2xl border border-slate-200 bg-slate-50/70 ${compact ? 'p-3' : 'p-4 md:p-5'}`}>
       <div className="mb-4 flex items-center justify-between gap-3"><div className="flex items-center gap-2 text-xs font-semibold text-[#4666b0]"><GitBranch className="size-4" /> Workflow 순서도</div><span className="text-[10px] text-slate-400">{steps.length}개 노드</span></div>
-      <div className="mx-auto max-w-2xl">
+      <div className={compact ? 'grid gap-4' : `grid gap-5 ${selectedNode !== null ? 'lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)]' : ''}`}>
+      <div className="mx-auto w-full max-w-2xl">
         <div className="mx-auto w-fit rounded-full bg-[#102f3d] px-4 py-1.5 text-[10px] font-bold text-white">START</div>
         <div className="mx-auto h-5 w-px bg-slate-300" />
         <div className="space-y-3">
@@ -1215,8 +1216,8 @@ function WorkflowDiagram({ steps, stepTypes, nextStepIndexes, yesBranchIndexes, 
         </div>
       </div>
       {selectedNode !== null && (
-        <aside aria-label="노드 상세정보" className="fixed inset-x-3 bottom-3 z-[80] max-h-[70vh] overflow-y-auto rounded-2xl border border-[#35d0ba]/30 bg-white p-4 shadow-[0_24px_70px_rgba(3,20,28,0.28)] md:inset-x-auto md:bottom-auto md:right-6 md:top-24 md:w-[380px]">
-          <div className="sticky top-0 -mx-1 -mt-1 flex items-start justify-between gap-3 bg-white px-1 pb-3"><div><span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#168b78]">Node inspector · 노드 {selectedNode + 1}</span><h4 className="mt-1 text-sm font-semibold text-slate-800">{steps[selectedNode]?.trim() || '내용 미입력'}</h4></div><Button type="button" variant="ghost" size="icon" className="size-7 shrink-0" onClick={() => setSelectedNode(null)} aria-label="노드 상세 닫기"><X className="size-4" /></Button></div>
+        <aside aria-label="노드 상세정보" className={`self-start rounded-2xl border border-[#35d0ba]/30 bg-white p-4 shadow-sm ${compact ? '' : 'lg:sticky lg:top-4'}`}>
+          <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3"><div><span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#168b78]">Node inspector · 노드 {selectedNode + 1}</span><h4 className="mt-1 text-sm font-semibold text-slate-800">{steps[selectedNode]?.trim() || '내용 미입력'}</h4></div><Button type="button" variant="ghost" size="icon" className="size-7 shrink-0" onClick={() => setSelectedNode(null)} aria-label="노드 상세 닫기"><X className="size-4" /></Button></div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl bg-slate-50 p-3 sm:col-span-2"><span className="text-[10px] font-semibold text-slate-400">세부 수행 내용</span><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-slate-600">{stepDetails?.[selectedNode]?.trim() || '등록된 세부 수행 내용이 없습니다.'}</p></div>
             {stepResourceKinds?.[selectedNode]?.includes('skill') && <NodeResourceDetail label="Skill" value={stepSkillInfo?.[selectedNode]} />}
@@ -1226,6 +1227,7 @@ function WorkflowDiagram({ steps, stepTypes, nextStepIndexes, yesBranchIndexes, 
           </div>
         </aside>
       )}
+      </div>
     </div>
   );
 }
