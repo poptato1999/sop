@@ -61,6 +61,12 @@ type SopDetail = {
   nextStepIndexes?: Array<number | null>;
   yesBranchIndexes?: Array<number | null>;
   noBranchIndexes?: Array<number | null>;
+  stepDetails?: string[];
+  stepResourceKinds?: Array<Array<NodeResourceKind>>;
+  stepSkillInfo?: string[];
+  stepToolInfo?: string[];
+  stepAgentInfo?: string[];
+  stepExecutionNotes?: string[];
   author: string;
   reviewer: string;
   approver: string;
@@ -70,6 +76,7 @@ type SopDetail = {
 };
 
 type WorkflowStepType = 'action' | 'decision' | 'end';
+type NodeResourceKind = 'skill' | 'tool' | 'agent';
 
 type AttachmentMeta = {
   id: string;
@@ -111,6 +118,12 @@ const sopDetails: Record<string, SopDetail> = {
     steps: ['설비 상태와 Lot 잔류 여부를 확인하고 장비를 Maintenance Mode로 전환한다.', 'Chamber 온도와 RF 전원이 안전 기준에 도달했는지 확인한다.', '표준 체크리스트 순서에 따라 Chamber를 분해하고 부품 상태를 기록한다.', '지정 Chemical과 Tool을 사용하여 세정 후 교체 대상 부품을 판정한다.', '조립·Leak Check·Seasoning 완료 후 엔지니어 승인을 받아 생산 전환한다.'],
     stepAutomation: [75, 100, 50, 25, 50],
     humanApprovalRequired: [true, false, true, true, true],
+    stepDetails: ['MES에서 장비 상태와 잔류 Lot을 조회하고 작업 허가 상태를 확인한다.', '센서 데이터를 수집하여 온도와 RF 전원이 안전 임계값 이하인지 판정한다.', '체크리스트에 따라 분해 순서와 부품 상태를 기록한다.', '세정 결과와 부품 수명을 기준으로 교체 여부를 판단한다.', 'Leak Check와 Seasoning 결과를 종합해 생산 전환 승인을 요청한다.'],
+    stepResourceKinds: [['tool', 'agent'], ['tool', 'agent'], ['skill'], ['skill', 'agent'], ['tool', 'agent']],
+    stepSkillInfo: ['', '', 'Chamber PM 작업 가이드', '부품 교체 판정 Skill', ''],
+    stepToolInfo: ['MES 장비상태 조회 API', 'Equipment Sensor API', '', '', '설비제어·QMS API'],
+    stepAgentInfo: ['PM 사전점검 Agent', '안전조건 판정 Agent', '', '부품수명 분석 Agent', '생산전환 승인 Agent'],
+    stepExecutionNotes: ['작업 시작 전 자동 조회', '모든 안전 조건 충족 여부를 계산', '작업자에게 순서별 안내', '판정 결과는 엔지니어 확인 필수', '승인자에게 결과와 증빙을 전달'],
     author: '김서준 · Etch 공정기술팀', reviewer: '박지훈 · 설비기술팀', approver: '이현우 · 제조부문장',
     related: ['EHS-CHEM-003 Chemical 취급 안전기준', 'FAB-ETCH-009 Chamber Parts 교체 기준'], revision: 'v4.2 · PM 후 Seasoning 확인 기준 보완',
     attachments: [{ id: 'sample-etch-checklist', name: 'FAB-ETCH-024_PM_체크리스트.txt', type: 'text/plain', size: 458, url: '/samples/FAB-ETCH-024_PM_checklist.txt' }],
@@ -615,6 +628,12 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
   const [nextStepIndexes, setNextStepIndexes] = useState<Array<number | null>>([null]);
   const [yesBranchIndexes, setYesBranchIndexes] = useState<Array<number | null>>([null]);
   const [noBranchIndexes, setNoBranchIndexes] = useState<Array<number | null>>([null]);
+  const [stepDetails, setStepDetails] = useState(['']);
+  const [stepResourceKinds, setStepResourceKinds] = useState<Array<Array<NodeResourceKind>>>([[]]);
+  const [stepSkillInfo, setStepSkillInfo] = useState(['']);
+  const [stepToolInfo, setStepToolInfo] = useState(['']);
+  const [stepAgentInfo, setStepAgentInfo] = useState(['']);
+  const [stepExecutionNotes, setStepExecutionNotes] = useState(['']);
   const [owner, setOwner] = useState('한수민');
   const [reviewer, setReviewer] = useState('');
   const [approver, setApprover] = useState('');
@@ -651,12 +670,18 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
       setNextStepIndexes(initialRecord.detail.steps.length ? initialRecord.detail.steps.map((_, index) => initialRecord.detail.nextStepIndexes?.[index] ?? (index < initialRecord.detail.steps.length - 1 ? index + 1 : null)) : [null]);
       setYesBranchIndexes(initialRecord.detail.steps.length ? initialRecord.detail.steps.map((_, index) => initialRecord.detail.yesBranchIndexes?.[index] ?? null) : [null]);
       setNoBranchIndexes(initialRecord.detail.steps.length ? initialRecord.detail.steps.map((_, index) => initialRecord.detail.noBranchIndexes?.[index] ?? null) : [null]);
+      setStepDetails(initialRecord.detail.steps.length ? initialRecord.detail.steps.map((_, index) => initialRecord.detail.stepDetails?.[index] ?? '') : ['']);
+      setStepResourceKinds(initialRecord.detail.steps.length ? initialRecord.detail.steps.map((_, index) => initialRecord.detail.stepResourceKinds?.[index] ?? []) : [[]]);
+      setStepSkillInfo(initialRecord.detail.steps.length ? initialRecord.detail.steps.map((_, index) => initialRecord.detail.stepSkillInfo?.[index] ?? '') : ['']);
+      setStepToolInfo(initialRecord.detail.steps.length ? initialRecord.detail.steps.map((_, index) => initialRecord.detail.stepToolInfo?.[index] ?? '') : ['']);
+      setStepAgentInfo(initialRecord.detail.steps.length ? initialRecord.detail.steps.map((_, index) => initialRecord.detail.stepAgentInfo?.[index] ?? '') : ['']);
+      setStepExecutionNotes(initialRecord.detail.steps.length ? initialRecord.detail.steps.map((_, index) => initialRecord.detail.stepExecutionNotes?.[index] ?? '') : ['']);
       setOwner(initialRecord.doc.owner === '미지정' ? '' : initialRecord.doc.owner);
       setReviewer(initialRecord.detail.reviewer === '검토자 미지정' ? '' : initialRecord.detail.reviewer);
       setApprover(initialRecord.detail.approver === '승인자 미지정' ? '' : initialRecord.detail.approver);
       setExistingAttachments(initialRecord.detail.attachments ?? []);
     } else {
-      setTitle(''); setDocumentType('작업 표준서'); setScope('S2'); setOrganization(''); setIncludesChildren(true); setPurpose(''); setSteps(['']); setStepAutomation([0]); setHumanApprovalRequired([true]); setStepTypes(['action']); setNextStepIndexes([null]); setYesBranchIndexes([null]); setNoBranchIndexes([null]); setOwner('한수민'); setReviewer(''); setApprover(''); setExistingAttachments([]);
+      setTitle(''); setDocumentType('작업 표준서'); setScope('S2'); setOrganization(''); setIncludesChildren(true); setPurpose(''); setSteps(['']); setStepAutomation([0]); setHumanApprovalRequired([true]); setStepTypes(['action']); setNextStepIndexes([null]); setYesBranchIndexes([null]); setNoBranchIndexes([null]); setStepDetails(['']); setStepResourceKinds([[]]); setStepSkillInfo(['']); setStepToolInfo(['']); setStepAgentInfo(['']); setStepExecutionNotes(['']); setOwner('한수민'); setReviewer(''); setApprover(''); setExistingAttachments([]);
     }
     setAttachments([]); setError(''); setTypeInputOpen(false); setNewDocumentType('');
   }, [open, initialRecord]);
@@ -674,6 +699,12 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
     setNextStepIndexes((current) => current.filter((_, stepIndex) => stepIndex !== index).map(shiftTarget));
     setYesBranchIndexes((current) => current.filter((_, stepIndex) => stepIndex !== index).map(shiftTarget));
     setNoBranchIndexes((current) => current.filter((_, stepIndex) => stepIndex !== index).map(shiftTarget));
+    setStepDetails((current) => current.filter((_, stepIndex) => stepIndex !== index));
+    setStepResourceKinds((current) => current.filter((_, stepIndex) => stepIndex !== index));
+    setStepSkillInfo((current) => current.filter((_, stepIndex) => stepIndex !== index));
+    setStepToolInfo((current) => current.filter((_, stepIndex) => stepIndex !== index));
+    setStepAgentInfo((current) => current.filter((_, stepIndex) => stepIndex !== index));
+    setStepExecutionNotes((current) => current.filter((_, stepIndex) => stepIndex !== index));
   };
   const addWorkflowStep = () => {
     const newIndex = steps.length;
@@ -684,6 +715,12 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
     setNextStepIndexes((current) => current.map((target, index) => index === newIndex - 1 && stepTypes[index] === 'action' && target === null ? newIndex : target).concat(null));
     setYesBranchIndexes((current) => [...current, null]);
     setNoBranchIndexes((current) => [...current, null]);
+    setStepDetails((current) => [...current, '']);
+    setStepResourceKinds((current) => [...current, []]);
+    setStepSkillInfo((current) => [...current, '']);
+    setStepToolInfo((current) => [...current, '']);
+    setStepAgentInfo((current) => [...current, '']);
+    setStepExecutionNotes((current) => [...current, '']);
   };
   const addDocumentType = () => {
     const nextType = newDocumentType.trim();
@@ -696,7 +733,7 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
     try { window.localStorage.setItem('sop-central-document-types', JSON.stringify(nextTypes)); } catch { /* no-op */ }
   };
   const save = async (submitForApproval: boolean) => {
-    const cleanStepEntries = steps.map((step, index) => ({ originalIndex: index, text: step.trim(), automationRate: stepAutomation[index] ?? 0, humanApproval: humanApprovalRequired[index] ?? true, type: stepTypes[index] ?? 'action', next: nextStepIndexes[index] ?? null, yes: yesBranchIndexes[index] ?? null, no: noBranchIndexes[index] ?? null })).filter((entry) => entry.text);
+    const cleanStepEntries = steps.map((step, index) => ({ originalIndex: index, text: step.trim(), automationRate: stepAutomation[index] ?? 0, humanApproval: humanApprovalRequired[index] ?? true, type: stepTypes[index] ?? 'action', next: nextStepIndexes[index] ?? null, yes: yesBranchIndexes[index] ?? null, no: noBranchIndexes[index] ?? null, details: stepDetails[index]?.trim() ?? '', resources: stepResourceKinds[index] ?? [], skillInfo: stepSkillInfo[index]?.trim() ?? '', toolInfo: stepToolInfo[index]?.trim() ?? '', agentInfo: stepAgentInfo[index]?.trim() ?? '', executionNotes: stepExecutionNotes[index]?.trim() ?? '' })).filter((entry) => entry.text);
     const cleanSteps = cleanStepEntries.map((entry) => entry.text);
     const indexMap = new Map(cleanStepEntries.map((entry, index) => [entry.originalIndex, index]));
     const remapTarget = (target: number | null) => target === null ? null : indexMap.get(target) ?? null;
@@ -737,6 +774,12 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
         nextStepIndexes: cleanStepEntries.map((entry) => remapTarget(entry.next)),
         yesBranchIndexes: cleanStepEntries.map((entry) => remapTarget(entry.yes)),
         noBranchIndexes: cleanStepEntries.map((entry) => remapTarget(entry.no)),
+        stepDetails: cleanStepEntries.map((entry) => entry.details),
+        stepResourceKinds: cleanStepEntries.map((entry) => entry.resources),
+        stepSkillInfo: cleanStepEntries.map((entry) => entry.skillInfo),
+        stepToolInfo: cleanStepEntries.map((entry) => entry.toolInfo),
+        stepAgentInfo: cleanStepEntries.map((entry) => entry.agentInfo),
+        stepExecutionNotes: cleanStepEntries.map((entry) => entry.executionNotes),
         author: `${owner.trim() || '미지정'} · 작성자`,
         reviewer: reviewer.trim() || '검토자 미지정',
         approver: approver.trim() || '승인자 미지정',
@@ -746,7 +789,7 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
       },
     };
       onSave(record, submitForApproval);
-      setTitle(''); setDocumentType('작업 표준서'); setScope('S2'); setOrganization(''); setIncludesChildren(true); setPurpose(''); setSteps(['']); setStepAutomation([0]); setHumanApprovalRequired([true]); setStepTypes(['action']); setNextStepIndexes([null]); setYesBranchIndexes([null]); setNoBranchIndexes([null]); setReviewer(''); setApprover(''); setAttachments([]); setExistingAttachments([]); setError('');
+      setTitle(''); setDocumentType('작업 표준서'); setScope('S2'); setOrganization(''); setIncludesChildren(true); setPurpose(''); setSteps(['']); setStepAutomation([0]); setHumanApprovalRequired([true]); setStepTypes(['action']); setNextStepIndexes([null]); setYesBranchIndexes([null]); setNoBranchIndexes([null]); setStepDetails(['']); setStepResourceKinds([[]]); setStepSkillInfo(['']); setStepToolInfo(['']); setStepAgentInfo(['']); setStepExecutionNotes(['']); setReviewer(''); setApprover(''); setAttachments([]); setExistingAttachments([]); setError('');
     } catch {
       setError('첨부 파일 저장 중 오류가 발생했습니다. 파일을 다시 선택해 주세요.');
     } finally {
@@ -827,6 +870,24 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
                           )}
                         </div>
                         <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
+                          <label><span className="mb-1.5 block text-[11px] font-semibold text-slate-600">세부 수행 내용</span><Textarea value={stepDetails[index] ?? ''} onChange={(event) => setStepDetails((current) => current.map((value, stepIndex) => stepIndex === index ? event.target.value : value))} className="min-h-16 bg-slate-50" placeholder="담당자, 입력값, 판정 기준, 산출물 등 노드의 상세 내용을 입력하세요." /></label>
+                          <div className="mt-3">
+                            <span className="mb-1.5 block text-[11px] font-semibold text-slate-600">실행 자원 선택</span>
+                            <div className="grid grid-cols-3 gap-1.5">
+                              {([['skill', 'Skill'], ['tool', 'Tool'], ['agent', 'Agent']] as Array<[NodeResourceKind, string]>).map(([kind, label]) => {
+                                const selected = stepResourceKinds[index]?.includes(kind) ?? false;
+                                return <button key={kind} type="button" onClick={() => setStepResourceKinds((current) => current.map((resources, stepIndex) => stepIndex === index ? (resources.includes(kind) ? resources.filter((item) => item !== kind) : [...resources, kind]) : resources))} className={`rounded-lg border px-2 py-2 text-[10px] font-semibold transition ${selected ? 'border-[#168b78] bg-[#e1f7f3] text-[#147b6a]' : 'border-slate-200 bg-slate-50 text-slate-400'}`}>{label}</button>;
+                              })}
+                            </div>
+                          </div>
+                          <div className="mt-2 space-y-2">
+                            {stepResourceKinds[index]?.includes('skill') && <Input value={stepSkillInfo[index] ?? ''} onChange={(event) => setStepSkillInfo((current) => current.map((value, stepIndex) => stepIndex === index ? event.target.value : value))} className="h-9 bg-slate-50 text-xs" placeholder="Skill 이름·버전·식별자" />}
+                            {stepResourceKinds[index]?.includes('tool') && <Input value={stepToolInfo[index] ?? ''} onChange={(event) => setStepToolInfo((current) => current.map((value, stepIndex) => stepIndex === index ? event.target.value : value))} className="h-9 bg-slate-50 text-xs" placeholder="Tool 또는 API 이름·시스템" />}
+                            {stepResourceKinds[index]?.includes('agent') && <Input value={stepAgentInfo[index] ?? ''} onChange={(event) => setStepAgentInfo((current) => current.map((value, stepIndex) => stepIndex === index ? event.target.value : value))} className="h-9 bg-slate-50 text-xs" placeholder="Agent 이름·역할·담당 범위" />}
+                            {stepResourceKinds[index]?.length > 0 && <Textarea value={stepExecutionNotes[index] ?? ''} onChange={(event) => setStepExecutionNotes((current) => current.map((value, stepIndex) => stepIndex === index ? event.target.value : value))} className="min-h-14 bg-slate-50 text-xs" placeholder="호출 조건, 입력·출력, 연동 방식, 실패 시 처리" />}
+                          </div>
+                        </div>
+                        <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
                           <div className="mb-2 flex items-center justify-between"><span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600"><Sparkles className="size-3.5 text-[#168b78]" /> Agent 대행률</span><strong className="text-sm text-[#147b6a]">{stepAutomation[index] ?? 0}%</strong></div>
                           <div className="grid grid-cols-5 gap-1">
                             {[0, 25, 50, 75, 100].map((rate) => <button key={rate} type="button" onClick={() => setStepAutomation((current) => current.map((value, stepIndex) => stepIndex === index ? rate : value))} className={`rounded-md px-1 py-1.5 text-[10px] font-semibold transition ${stepAutomation[index] === rate ? 'bg-[#168b78] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>{rate}%</button>)}
@@ -844,7 +905,7 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
                   <div className="grid size-10 place-items-center rounded-full bg-white text-sm font-bold text-[#147b6a] shadow-sm">{steps.filter((step) => step.trim()).length ? Math.round(steps.reduce((sum, step, index) => sum + (step.trim() ? stepAutomation[index] ?? 0 : 0), 0) / steps.filter((step) => step.trim()).length) : 0}%</div>
                   <div><p className="text-xs font-semibold text-slate-700">예상 Agent 전환율</p><p className="mt-0.5 text-[10px] text-slate-500">작성된 단계별 Agent 대행률의 평균</p></div>
                 </div>
-                <div className="mt-4"><WorkflowDiagram steps={steps} stepTypes={stepTypes} nextStepIndexes={nextStepIndexes} yesBranchIndexes={yesBranchIndexes} noBranchIndexes={noBranchIndexes} stepAutomation={stepAutomation} humanApprovalRequired={humanApprovalRequired} compact /></div>
+                <div className="mt-4"><WorkflowDiagram steps={steps} stepTypes={stepTypes} nextStepIndexes={nextStepIndexes} yesBranchIndexes={yesBranchIndexes} noBranchIndexes={noBranchIndexes} stepAutomation={stepAutomation} humanApprovalRequired={humanApprovalRequired} stepDetails={stepDetails} stepResourceKinds={stepResourceKinds} stepSkillInfo={stepSkillInfo} stepToolInfo={stepToolInfo} stepAgentInfo={stepAgentInfo} stepExecutionNotes={stepExecutionNotes} compact /></div>
               </section>
 
               <section>
@@ -1045,7 +1106,7 @@ function LibraryView({ items, details, editableIds, onCreate, onEdit, onApprove,
             <div className="overflow-y-auto p-5 md:p-6">
               <section className="mb-6 grid gap-3 rounded-2xl border border-[#35d0ba]/25 bg-[#f0fbf9] p-4 md:grid-cols-[1fr_auto_auto] md:items-center"><div><div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[#147b6a]"><Building2 className="size-4" /> 적용 조직</div><p className="text-sm font-semibold text-slate-800">{detail.organization}</p><p className="mt-1 text-xs text-slate-500">{detail.includesChildren ? '해당 조직과 모든 하위 조직에 적용' : '지정된 조직·대상에만 적용'}</p></div><div className="rounded-xl bg-white px-4 py-3 text-center shadow-sm ring-1 ring-[#35d0ba]/20"><span className="block text-[10px] text-slate-400">SOP 적용 범위</span><strong className="mt-1 block text-xl text-[#147b6a]">{selected.scope}</strong></div><div className="rounded-xl bg-[#102f3d] px-4 py-3 text-center text-white shadow-sm"><span className="block text-[10px] text-slate-300">Agent 전환율</span><strong className="mt-1 block text-xl">{getAgentConversion(detail) === null ? '미평가' : `${getAgentConversion(detail)}%`}</strong></div></section>
               <section className="mb-7"><SectionTitle number="01" title="목적 및 적용 기준" /><p className="text-sm leading-7 text-slate-600">{detail.purpose}</p></section>
-              <section className="mb-7"><SectionTitle number="02" title="절차 Workflow" /><WorkflowDiagram steps={detail.steps} stepTypes={detail.stepTypes} nextStepIndexes={detail.nextStepIndexes} yesBranchIndexes={detail.yesBranchIndexes} noBranchIndexes={detail.noBranchIndexes} stepAutomation={detail.stepAutomation} humanApprovalRequired={detail.humanApprovalRequired} /></section>
+              <section className="mb-7"><SectionTitle number="02" title="절차 Workflow" /><WorkflowDiagram steps={detail.steps} stepTypes={detail.stepTypes} nextStepIndexes={detail.nextStepIndexes} yesBranchIndexes={detail.yesBranchIndexes} noBranchIndexes={detail.noBranchIndexes} stepAutomation={detail.stepAutomation} humanApprovalRequired={detail.humanApprovalRequired} stepDetails={detail.stepDetails} stepResourceKinds={detail.stepResourceKinds} stepSkillInfo={detail.stepSkillInfo} stepToolInfo={detail.stepToolInfo} stepAgentInfo={detail.stepAgentInfo} stepExecutionNotes={detail.stepExecutionNotes} /></section>
               <section className="mb-7">
                 <SectionTitle number="03" title="첨부 문서" />
                 {detail.attachments?.length ? (
@@ -1081,7 +1142,7 @@ function LibraryView({ items, details, editableIds, onCreate, onEdit, onApprove,
   );
 }
 
-function WorkflowDiagram({ steps, stepTypes, nextStepIndexes, yesBranchIndexes, noBranchIndexes, stepAutomation, humanApprovalRequired, compact = false }: {
+function WorkflowDiagram({ steps, stepTypes, nextStepIndexes, yesBranchIndexes, noBranchIndexes, stepAutomation, humanApprovalRequired, stepDetails, stepResourceKinds, stepSkillInfo, stepToolInfo, stepAgentInfo, stepExecutionNotes, compact = false }: {
   steps: string[];
   stepTypes?: WorkflowStepType[];
   nextStepIndexes?: Array<number | null>;
@@ -1089,8 +1150,15 @@ function WorkflowDiagram({ steps, stepTypes, nextStepIndexes, yesBranchIndexes, 
   noBranchIndexes?: Array<number | null>;
   stepAutomation?: Array<number | boolean>;
   humanApprovalRequired?: boolean[];
+  stepDetails?: string[];
+  stepResourceKinds?: Array<Array<NodeResourceKind>>;
+  stepSkillInfo?: string[];
+  stepToolInfo?: string[];
+  stepAgentInfo?: string[];
+  stepExecutionNotes?: string[];
   compact?: boolean;
 }) {
+  const [selectedNode, setSelectedNode] = useState<number | null>(null);
   const targetLabel = (target: number | null | undefined) => target === null || target === undefined ? '종료' : `노드 ${target + 1}`;
   return (
     <div className={`rounded-2xl border border-slate-200 bg-slate-50/70 ${compact ? 'p-3' : 'p-4 md:p-5'}`}>
@@ -1107,12 +1175,12 @@ function WorkflowDiagram({ steps, stepTypes, nextStepIndexes, yesBranchIndexes, 
             const nextTarget = nextStepIndexes ? nextStepIndexes[index] : (index < steps.length - 1 ? index + 1 : null);
             return (
               <div key={`${index}-${step}`}>
-                <div className={`mx-auto border bg-white shadow-sm ${isDecision ? 'max-w-xl border-[#ffbd59] ring-2 ring-[#fff1dd]' : type === 'end' ? 'max-w-md rounded-full border-slate-300' : 'max-w-xl rounded-xl border-slate-200'}`}>
+                <button type="button" onClick={() => setSelectedNode((current) => current === index ? null : index)} className={`mx-auto block w-full border bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${selectedNode === index ? 'ring-2 ring-[#35d0ba]' : ''} ${isDecision ? 'max-w-xl border-[#ffbd59] ring-offset-2' : type === 'end' ? 'max-w-md rounded-full border-slate-300' : 'max-w-xl rounded-xl border-slate-200'}`}>
                   <div className="flex items-start gap-3 p-3">
                     <span className={`grid size-8 shrink-0 place-items-center text-[11px] font-bold ${isDecision ? 'rotate-45 rounded-md bg-[#fff1dd] text-[#a45a08]' : type === 'end' ? 'rounded-full bg-slate-200 text-slate-600' : 'rounded-lg bg-[#e9efff] text-[#4666b0]'}`}><span className={isDecision ? '-rotate-45' : ''}>{index + 1}</span></span>
-                    <div className="min-w-0 flex-1"><div className="mb-1 flex flex-wrap items-center gap-1.5"><span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{isDecision ? '조건 분기' : type === 'end' ? '종료' : index === 0 ? '시작 작업' : '작업'}</span>{assessed && <span className="rounded-full bg-[#def7ef] px-2 py-0.5 text-[9px] font-semibold text-[#147b6a]">Agent {rate}%</span>}{assessed && (humanApprovalRequired?.[index] ?? true) && <span className="rounded-full bg-[#fff1dd] px-2 py-0.5 text-[9px] font-semibold text-[#a45a08]">사람 승인</span>}</div><p className={`${compact ? 'text-xs' : 'text-sm'} leading-5 text-slate-700`}>{step.trim() || '내용 미입력'}</p></div>
+                    <div className="min-w-0 flex-1"><div className="mb-1 flex flex-wrap items-center gap-1.5"><span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{isDecision ? '조건 분기' : type === 'end' ? '종료' : index === 0 ? '시작 작업' : '작업'}</span>{assessed && <span className="rounded-full bg-[#def7ef] px-2 py-0.5 text-[9px] font-semibold text-[#147b6a]">Agent {rate}%</span>}{assessed && (humanApprovalRequired?.[index] ?? true) && <span className="rounded-full bg-[#fff1dd] px-2 py-0.5 text-[9px] font-semibold text-[#a45a08]">사람 승인</span>}{stepResourceKinds?.[index]?.map((resource) => <span key={resource} className="rounded-full bg-[#e9efff] px-2 py-0.5 text-[9px] font-semibold text-[#4666b0]">{resource === 'skill' ? 'Skill' : resource === 'tool' ? 'Tool' : 'Agent'}</span>)}</div><p className={`${compact ? 'text-xs' : 'text-sm'} leading-5 text-slate-700`}>{step.trim() || '내용 미입력'}</p><span className="mt-1 block text-[9px] text-slate-400">클릭하여 세부정보 보기</span></div>
                   </div>
-                </div>
+                </button>
                 {isDecision ? (
                   <div className="mx-auto grid max-w-xl grid-cols-2 gap-3 pt-2">
                     <div className="rounded-lg border border-[#35d0ba]/30 bg-[#f0fbf9] px-3 py-2 text-center text-[10px] font-semibold text-[#147b6a]">YES → {targetLabel(yesBranchIndexes?.[index])}</div>
@@ -1126,8 +1194,24 @@ function WorkflowDiagram({ steps, stepTypes, nextStepIndexes, yesBranchIndexes, 
           })}
         </div>
       </div>
+      {selectedNode !== null && (
+        <div className="mx-auto mt-5 max-w-2xl rounded-2xl border border-[#35d0ba]/30 bg-white p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-3"><div><span className="text-[10px] font-bold text-[#168b78]">노드 {selectedNode + 1} 상세정보</span><h4 className="mt-1 text-sm font-semibold text-slate-800">{steps[selectedNode]?.trim() || '내용 미입력'}</h4></div><Button type="button" variant="ghost" size="icon" className="size-7" onClick={() => setSelectedNode(null)} aria-label="노드 상세 닫기"><X className="size-4" /></Button></div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl bg-slate-50 p-3 sm:col-span-2"><span className="text-[10px] font-semibold text-slate-400">세부 수행 내용</span><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-slate-600">{stepDetails?.[selectedNode]?.trim() || '등록된 세부 수행 내용이 없습니다.'}</p></div>
+            {stepResourceKinds?.[selectedNode]?.includes('skill') && <NodeResourceDetail label="Skill" value={stepSkillInfo?.[selectedNode]} />}
+            {stepResourceKinds?.[selectedNode]?.includes('tool') && <NodeResourceDetail label="Tool" value={stepToolInfo?.[selectedNode]} />}
+            {stepResourceKinds?.[selectedNode]?.includes('agent') && <NodeResourceDetail label="Agent" value={stepAgentInfo?.[selectedNode]} />}
+            <div className="rounded-xl bg-slate-50 p-3 sm:col-span-2"><span className="text-[10px] font-semibold text-slate-400">실행·연동 조건</span><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-slate-600">{stepExecutionNotes?.[selectedNode]?.trim() || '등록된 실행·연동 조건이 없습니다.'}</p></div>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function NodeResourceDetail({ label, value }: { label: string; value?: string }) {
+  return <div className="rounded-xl border border-[#4666b0]/15 bg-[#f5f7ff] p-3"><span className="text-[10px] font-semibold text-[#4666b0]">{label}</span><p className="mt-1 text-xs leading-5 text-slate-600">{value?.trim() || `${label} 정보 미입력`}</p></div>;
 }
 
 function SectionTitle({ number, title }: { number: string; title: string }) {
