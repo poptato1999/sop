@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://sop-central-manufacturing.snappy-sky-1661.chatgpt.site'),
+  metadataBase: new URL('https://sop-central-manufacturing.soonsunan.chatgpt.site'),
   title: 'SOP Central | 제조 표준 관리',
   description: '반도체 제조 현장의 SOP 제정, 검토, 승인, 교육을 한 곳에서 관리합니다.',
   openGraph: {
