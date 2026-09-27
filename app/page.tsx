@@ -292,25 +292,31 @@ function buildSopExportHtml(doc: SopDocument, detail: SopDetail) {
   </style></head><body><article class="page"><div class="watermark">사내 전용</div><div class="brand">SOP CENTRAL · OFFICIAL COPY</div><h1 class="title">${escapeHtml(doc.title)}</h1><div class="meta">${escapeHtml(doc.id)} · ${escapeHtml(doc.version)} · ${escapeHtml(doc.status)} · 등록일 ${escapeHtml(doc.date)}</div><div class="summary"><div class="org"><span>적용 조직</span><strong>${escapeHtml(detail.organization)}</strong><p>${detail.includesChildren ? '해당 조직과 모든 하위 조직에 적용' : '지정된 조직·대상에만 적용'}</p></div><div class="metric"><span>SOP 적용 범위</span><strong>${escapeHtml(doc.scope)}</strong></div><div class="metric"><span>Agent 전환율</span><strong>${conversion === null ? '미평가' : `${conversion}%`}</strong></div></div><section><h2>01. 목적 및 적용 기준</h2><p>${escapeHtml(detail.purpose)}</p></section><section><h2>02. 절차 Workflow</h2><div class="workflow">${workflow}</div></section><section class="two-column"><div><h2>03. 첨부 문서</h2><div class="box"><ul>${attachments}</ul></div></div><div><h2>04. 책임 및 승인</h2><div class="box"><dl><dt>작성</dt><dd>${escapeHtml(detail.author)}</dd><dt>검토</dt><dd>${escapeHtml(detail.reviewer)}</dd><dt>승인</dt><dd>${escapeHtml(detail.approver)}</dd></dl></div></div></section><section><h2>05. 연관 문서 및 이력</h2><div class="box"><ul>${related}</ul><p>${escapeHtml(detail.revision)}</p></div></section><div class="footer"><span>출력일시 ${escapeHtml(generatedAt)}</span><span>${escapeHtml(doc.id)} · ${escapeHtml(doc.version)}</span></div></article></body></html>`;
 }
 
-function exportSopAsHtml(doc: SopDocument, detail: SopDetail) {
-  const blobUrl = URL.createObjectURL(new Blob([buildSopExportHtml(doc, detail)], { type: 'text/html;charset=utf-8' }));
-  const anchor = document.createElement('a');
-  anchor.href = blobUrl;
-  anchor.download = `${doc.id}_${doc.title.replace(/[\\/:*?"<>|]/g, '_')}.html`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-}
-
-function exportSopAsPdf(doc: SopDocument, detail: SopDetail) {
-  const printWindow = window.open('', '_blank', 'width=1100,height=850');
-  if (!printWindow) throw new Error('팝업이 차단되었습니다.');
-  printWindow.opener = null;
-  printWindow.document.open();
-  printWindow.document.write(buildSopExportHtml(doc, detail));
-  printWindow.document.close();
-  window.setTimeout(() => printWindow.print(), 400);
+async function exportSopAsPdf(doc: SopDocument, detail: SopDetail) {
+  const frame = document.createElement('iframe');
+  frame.title = 'SOP PDF 생성';
+  frame.style.cssText = 'position:fixed;left:0;top:0;width:980px;height:1200px;z-index:-1;pointer-events:none;border:0;';
+  const loaded = new Promise<void>((resolve, reject) => {
+    frame.onload = () => resolve();
+    frame.onerror = () => reject(new Error('PDF 문서를 구성할 수 없습니다.'));
+  });
+  frame.srcdoc = buildSopExportHtml(doc, detail);
+  document.body.appendChild(frame);
+  try {
+    await loaded;
+    const exportElement = frame.contentDocument?.querySelector<HTMLElement>('.page');
+    if (!exportElement) throw new Error('PDF 내용을 찾을 수 없습니다.');
+    const { default: html2pdf } = await import('html2pdf.js');
+    await html2pdf().set({
+      margin: [8, 8, 8, 8],
+      filename: `${doc.id}_${doc.title.replace(/[\\/:*?"<>|]/g, '_')}.pdf`,
+      image: { type: 'jpeg', quality: 0.96 },
+      html2canvas: { scale: 1.6, useCORS: true, backgroundColor: '#ffffff' },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    }).from(exportElement).save();
+  } finally {
+    frame.remove();
+  }
 }
 
 function getDivisionName(doc: SopDocument, detail?: SopDetail) {
@@ -1108,6 +1114,8 @@ function LibraryView({ items, details, editableIds, onCreate, onEdit, onApprove,
   const [attachmentError, setAttachmentError] = useState('');
   const selected = items.find((doc) => doc.id === detailId) ?? null;
   const detail = selected ? details[selected.id] : null;
+  const exportBaseName = selected ? `${selected.id}_${selected.title.replace(/[\\/:*?"<>|]/g, '_')}` : 'SOP';
+  const htmlDownloadHref = selected && detail ? `data:text/html;charset=utf-8,${encodeURIComponent(buildSopExportHtml(selected, detail))}` : '';
   const divisionOptions = Array.from(new Set(items.flatMap((doc) => getOrganizationDivisions(doc, details[doc.id])))).sort((a, b) => a.localeCompare(b, 'ko'));
   const teamOptions = Array.from(new Set(items
     .filter((doc) => divisionFilter === 'ALL' || getOrganizationDivisions(doc, details[doc.id]).includes(divisionFilter))
@@ -1175,7 +1183,7 @@ function LibraryView({ items, details, editableIds, onCreate, onEdit, onApprove,
           <section role="dialog" aria-modal="true" aria-labelledby="sop-detail-title" onMouseDown={(event) => event.stopPropagation()} className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-[0_30px_90px_rgba(3,20,28,.35)]">
             <header className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 p-5 md:p-6">
               <div><div className="mb-2 flex flex-wrap items-center gap-2"><ScopeBadge level={selected.scope} /><StatusBadge tone={selected.tone}>{selected.status}</StatusBadge><span className="font-mono text-xs text-slate-400">{selected.id}</span></div><h2 id="sop-detail-title" className="text-xl font-semibold tracking-tight text-slate-900 md:text-2xl">{selected.title}</h2><p className="mt-2 text-sm text-slate-500">{selected.tone === 'draft' ? '임시 저장본' : selected.tone === 'review' ? '검토·승인 진행본' : '최신 승인본'} {selected.version} · 등록일 {selected.date}</p></div>
-              <Button onClick={() => setDetailId(null)} variant="ghost" size="icon" className="shrink-0 rounded-full" aria-label="상세 화면 닫기"><X className="size-5" /></Button>
+              <div className="flex shrink-0 items-start gap-2"><div className="flex flex-col items-end gap-1"><div className="flex overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"><NativeSelect value={exportFormat} onChange={(event) => { setExportFormat(event.target.value as 'pdf' | 'html'); setExportError(''); }} aria-label="SOP 내보내기 형식" className="rounded-none border-0"><NativeSelectOption value="pdf">PDF</NativeSelectOption><NativeSelectOption value="html">HTML</NativeSelectOption></NativeSelect>{exportFormat === 'pdf' ? <Button type="button" className="rounded-l-none bg-[#168b78] text-white hover:bg-[#147b6a]" onClick={async () => { setExportError(''); try { await exportSopAsPdf(selected, detail); } catch { setExportError('PDF 파일을 생성할 수 없습니다. 다시 시도해 주세요.'); } }}><Download className="size-4" /> PDF 다운로드</Button> : <a href={htmlDownloadHref} download={`${exportBaseName}.html`} className="inline-flex h-8 items-center gap-2 rounded-r-md bg-[#168b78] px-3 text-xs font-medium text-white transition hover:bg-[#147b6a]"><Download className="size-4" /> HTML 다운로드</a>}</div>{exportError && <p role="alert" className="max-w-64 text-right text-[10px] font-medium text-[#b24f42]">{exportError}</p>}</div><Button onClick={() => setDetailId(null)} variant="ghost" size="icon" className="shrink-0 rounded-full" aria-label="상세 화면 닫기"><X className="size-5" /></Button></div>
             </header>
             <div className="overflow-y-auto p-5 md:p-6">
               <section className="mb-6 grid gap-3 rounded-2xl border border-[#35d0ba]/25 bg-[#f0fbf9] p-4 md:grid-cols-[1fr_auto_auto] md:items-center"><div><div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[#147b6a]"><Building2 className="size-4" /> 적용 조직</div><p className="text-sm font-semibold text-slate-800">{detail.organization}</p><p className="mt-1 text-xs text-slate-500">{detail.includesChildren ? '해당 조직과 모든 하위 조직에 적용' : '지정된 조직·대상에만 적용'}</p></div><div className="rounded-xl bg-white px-4 py-3 text-center shadow-sm ring-1 ring-[#35d0ba]/20"><span className="block text-[10px] text-slate-400">SOP 적용 범위</span><strong className="mt-1 block text-xl text-[#147b6a]">{selected.scope}</strong></div><div className="rounded-xl bg-[#102f3d] px-4 py-3 text-center text-white shadow-sm"><span className="block text-[10px] text-slate-300">Agent 전환율</span><strong className="mt-1 block text-xl">{getAgentConversion(detail) === null ? '미평가' : `${getAgentConversion(detail)}%`}</strong></div></section>
@@ -1208,7 +1216,7 @@ function LibraryView({ items, details, editableIds, onCreate, onEdit, onApprove,
               </section>
               <div className="grid gap-6 lg:grid-cols-2"><section><SectionTitle number="04" title="책임 및 승인" /><div className="space-y-2 rounded-xl border border-slate-200 p-4"><Responsibility label="작성" value={detail.author} /><Responsibility label="검토" value={detail.reviewer} /><Responsibility label="승인" value={detail.approver} /></div></section><section><SectionTitle number="05" title="연관 문서 및 이력" /><div className="space-y-2 rounded-xl border border-slate-200 p-4">{detail.related.map((item) => <div key={item} className="flex items-center gap-2 text-xs text-slate-600"><Link2 className="size-3.5 text-[#168b78]" /><span>{item}</span></div>)}<div className="mt-3 flex items-start gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500"><History className="mt-0.5 size-3.5 text-[#168b78]" /><span>{detail.revision}</span></div></div></section></div>
             </div>
-            <footer className="flex shrink-0 flex-col gap-3 border-t border-slate-100 bg-slate-50 px-5 py-4 md:flex-row md:items-center md:justify-between md:px-6"><div><span className="text-xs text-slate-400">첨부 문서 {detail.attachments?.length ?? 0}개</span>{exportError && <p role="alert" className="mt-1 text-[11px] font-medium text-[#b24f42]">{exportError}</p>}</div><div className="flex flex-wrap justify-end gap-2"><div className="flex overflow-hidden rounded-lg border border-slate-200 bg-white"><NativeSelect value={exportFormat} onChange={(event) => { setExportFormat(event.target.value as 'pdf' | 'html'); setExportError(''); }} aria-label="SOP 내보내기 형식" className="rounded-none border-0"><NativeSelectOption value="pdf">PDF</NativeSelectOption><NativeSelectOption value="html">HTML</NativeSelectOption></NativeSelect><Button type="button" className="rounded-l-none bg-[#168b78] text-white hover:bg-[#147b6a]" onClick={() => { setExportError(''); try { if (exportFormat === 'pdf') exportSopAsPdf(selected, detail); else exportSopAsHtml(selected, detail); } catch { setExportError(exportFormat === 'pdf' ? 'PDF 창을 열 수 없습니다. 브라우저의 팝업 차단을 해제해 주세요.' : 'HTML 파일을 생성할 수 없습니다.'); } }}><Download className="size-4" /> {exportFormat === 'pdf' ? 'PDF로 내보내기' : 'HTML 다운로드'}</Button></div>{editableIds.includes(selected.id) && <Button variant="outline" className="border-[#ff7a66]/40 text-[#b24f42] hover:bg-[#fff5f3]" onClick={() => { if (window.confirm(`'${selected.title}' SOP를 삭제하시겠습니까? 삭제한 문서와 첨부 파일은 복구할 수 없습니다.`)) { setDetailId(null); onDelete(selected.id); } }}><Trash2 className="size-4" /> 삭제</Button>}{editableIds.includes(selected.id) && <Button variant="outline" onClick={() => { setDetailId(null); onEdit({ doc: selected, detail }); }}><FileText className="size-4" /> {selected.tone === 'draft' ? '이어서 작성' : '수정'}</Button>}{editableIds.includes(selected.id) && selected.tone === 'review' && <Button className="bg-[#168b78] text-white hover:bg-[#147b6a]" onClick={() => { if (window.confirm(`'${selected.title}' SOP를 최종 승인하시겠습니까?`)) { setDetailId(null); onApprove(selected.id); } }}><CheckCircle2 className="size-4" /> 승인</Button>}<Button variant="outline">개정 이력</Button><Button onClick={() => setDetailId(null)} className="bg-[#102f3d] text-white">닫기</Button></div></footer>
+            <footer className="flex shrink-0 flex-col gap-3 border-t border-slate-100 bg-slate-50 px-5 py-4 md:flex-row md:items-center md:justify-between md:px-6"><span className="text-xs text-slate-400">첨부 문서 {detail.attachments?.length ?? 0}개</span><div className="flex flex-wrap justify-end gap-2">{editableIds.includes(selected.id) && <Button variant="outline" className="border-[#ff7a66]/40 text-[#b24f42] hover:bg-[#fff5f3]" onClick={() => { if (window.confirm(`'${selected.title}' SOP를 삭제하시겠습니까? 삭제한 문서와 첨부 파일은 복구할 수 없습니다.`)) { setDetailId(null); onDelete(selected.id); } }}><Trash2 className="size-4" /> 삭제</Button>}{editableIds.includes(selected.id) && <Button variant="outline" onClick={() => { setDetailId(null); onEdit({ doc: selected, detail }); }}><FileText className="size-4" /> {selected.tone === 'draft' ? '이어서 작성' : '수정'}</Button>}{editableIds.includes(selected.id) && selected.tone === 'review' && <Button className="bg-[#168b78] text-white hover:bg-[#147b6a]" onClick={() => { if (window.confirm(`'${selected.title}' SOP를 최종 승인하시겠습니까?`)) { setDetailId(null); onApprove(selected.id); } }}><CheckCircle2 className="size-4" /> 승인</Button>}<Button variant="outline">개정 이력</Button><Button onClick={() => setDetailId(null)} className="bg-[#102f3d] text-white">닫기</Button></div></footer>
           </section>
         </div>
       )}
