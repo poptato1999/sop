@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Bell,
   BookOpenCheck,
@@ -17,14 +17,18 @@ import {
   LayoutDashboard,
   Layers3,
   Link2,
+  Plus,
   Menu,
   RefreshCw,
   Search,
+  Save,
+  Send,
   Settings,
   ShieldCheck,
   Sparkles,
   UserCheck,
   UsersRound,
+  Trash2,
   X,
 } from 'lucide-react';
 
@@ -32,6 +36,33 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+
+type SopDocument = {
+  id: string;
+  title: string;
+  area: string;
+  scope: string;
+  owner: string;
+  version: string;
+  date: string;
+  status: string;
+  tone: string;
+};
+
+type SopDetail = {
+  organization: string;
+  includesChildren: boolean;
+  purpose: string;
+  steps: string[];
+  author: string;
+  reviewer: string;
+  approver: string;
+  related: string[];
+  revision: string;
+};
+
+type CreatedSop = { doc: SopDocument; detail: SopDetail };
 
 const stats = [
   { label: '전체 SOP', value: '1,284', note: '이번 달 +24', icon: BookOpenCheck },
@@ -64,17 +95,7 @@ const scopeLevels = [
   { level: 'S4', title: '공정·설비·작업 적용', description: '특정 공정, 설비군 또는 작업에 적용', example: 'PECVD 3호기 PM 작업', color: '#b24f42', background: '#ffe9e5' },
 ];
 
-const sopDetails: Record<string, {
-  organization: string;
-  includesChildren: boolean;
-  purpose: string;
-  steps: string[];
-  author: string;
-  reviewer: string;
-  approver: string;
-  related: string[];
-  revision: string;
-}> = {
+const sopDetails: Record<string, SopDetail> = {
   'FAB-ETCH-024': {
     organization: '제조부문 > Etch 공정기술팀 > Dry Etcher 장비군',
     includesChildren: false,
@@ -121,7 +142,24 @@ export default function Home() {
   const [activeView, setActiveView] = useState('library');
   const [query, setQuery] = useState('');
   const [draftOpen, setDraftOpen] = useState(false);
-  const [selectedScope, setSelectedScope] = useState('S2');
+  const [createdSops, setCreatedSops] = useState<CreatedSop[]>([]);
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('sop-central-drafts');
+      if (saved) setCreatedSops(JSON.parse(saved));
+    } catch {
+      // Browser storage may be unavailable in restricted environments.
+    }
+  }, []);
+  const allDocuments = [...createdSops.map((item) => item.doc), ...documents];
+  const allDetails = { ...sopDetails, ...Object.fromEntries(createdSops.map((item) => [item.doc.id, item.detail])) };
+  const handleSaveSop = (record: CreatedSop) => {
+    const next = [record, ...createdSops];
+    setCreatedSops(next);
+    try { window.localStorage.setItem('sop-central-drafts', JSON.stringify(next)); } catch { /* no-op */ }
+    setDraftOpen(false);
+    setActiveView('library');
+  };
   const filteredDocuments = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     if (!keyword) return documents;
@@ -205,7 +243,7 @@ export default function Home() {
         {activeView === 'scope' ? (
           <ScopeManagement onCreate={() => setDraftOpen(true)} />
         ) : activeView === 'library' ? (
-          <LibraryView onCreate={() => setDraftOpen(true)} />
+          <LibraryView items={allDocuments} details={allDetails} onCreate={() => setDraftOpen(true)} />
         ) : (
         <div className="mx-auto max-w-[1500px] p-5 md:p-8 lg:p-10">
           <section className="mb-7 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
@@ -347,73 +385,149 @@ export default function Home() {
         )}
       </section>
 
-      {draftOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-[#06181f]/35 p-4 backdrop-blur-sm" role="presentation" onMouseDown={() => setDraftOpen(false)}>
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="new-sop-title"
-            className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div>
-              <h2 id="new-sop-title" className="text-xl font-semibold">새 SOP 시작</h2>
-              <p className="mt-2 text-sm text-slate-500">적용 범위와 문서 유형을 선택하면 표준 템플릿으로 초안이 생성됩니다.</p>
-            </div>
-            <div className="pt-5">
-              <p className="mb-2 text-xs font-semibold text-slate-600">SOP 적용 범위</p>
-              <div className="grid grid-cols-4 gap-2">
-                {scopeLevels.map((scope) => (
-                  <button
-                    key={scope.level}
-                    onClick={() => setSelectedScope(scope.level)}
-                    aria-pressed={selectedScope === scope.level}
-                    className={`rounded-xl border px-2 py-3 text-center transition ${selectedScope === scope.level ? 'border-[#168b78] bg-[#e8f8f5] text-[#126758] shadow-[0_0_0_2px_rgba(53,208,186,.12)]' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-                  >
-                    <strong className="block text-sm">{scope.level}</strong>
-                    <span className="mt-1 block text-[10px] leading-4">{scope.title.split(' ')[0]}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="mt-3 flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-xs text-slate-600">
-                <Building2 className="size-4 text-[#168b78]" />
-                <span>적용 조직: <strong>{selectedScope === 'S1' ? '반도체부문 전체' : selectedScope === 'S2' ? '제조부문 전체' : selectedScope === 'S3' ? 'CVD 공정기술팀' : 'PECVD 장비군'}</strong></span>
-              </div>
-            </div>
-            <div className="grid gap-3 py-5 sm:grid-cols-2">
-              {[
-                ['작업 표준서', '설비·공정 작업 순서'],
-                ['이상 대응 절차', '품질·설비 이상 조치'],
-                ['안전 절차', 'EHS 및 비상 대응'],
-                ['검사 기준서', '검사 방법과 판정 기준'],
-              ].map(([title, description]) => (
-                <button key={title} className="rounded-xl border border-slate-200 p-4 text-left transition hover:border-[#35d0ba] hover:bg-[#f2fbf9]">
-                  <span className="block font-semibold text-slate-800">{title}</span>
-                  <span className="mt-1 block text-xs text-slate-500">{description}</span>
-                </button>
-              ))}
-            </div>
-            <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
-              <Button variant="outline" onClick={() => setDraftOpen(false)}>취소</Button>
-              <Button className="bg-[#102f3d] text-white" onClick={() => setDraftOpen(false)}>초안 만들기</Button>
-            </div>
-          </section>
-        </div>
-      )}
+      <SopAuthoringDialog open={draftOpen} onClose={() => setDraftOpen(false)} onSave={handleSaveSop} />
     </main>
   );
 }
 
-function LibraryView({ onCreate }: { onCreate: () => void }) {
+function SopAuthoringDialog({ open, onClose, onSave }: { open: boolean; onClose: () => void; onSave: (record: CreatedSop) => void }) {
+  const [title, setTitle] = useState('');
+  const [documentType, setDocumentType] = useState('작업 표준서');
+  const [scope, setScope] = useState('S2');
+  const [organization, setOrganization] = useState('');
+  const [includesChildren, setIncludesChildren] = useState(true);
+  const [purpose, setPurpose] = useState('');
+  const [steps, setSteps] = useState(['']);
+  const [owner, setOwner] = useState('한수민');
+  const [reviewer, setReviewer] = useState('');
+  const [approver, setApprover] = useState('');
+  const [error, setError] = useState('');
+
+  if (!open) return null;
+
+  const updateStep = (index: number, value: string) => setSteps((current) => current.map((step, stepIndex) => stepIndex === index ? value : step));
+  const removeStep = (index: number) => setSteps((current) => current.length === 1 ? current : current.filter((_, stepIndex) => stepIndex !== index));
+  const save = (submitForApproval: boolean) => {
+    const cleanSteps = steps.map((step) => step.trim()).filter(Boolean);
+    if (!title.trim() || !organization.trim() || !purpose.trim() || cleanSteps.length === 0) {
+      setError('제목, 적용 조직, 목적과 한 개 이상의 절차를 입력해 주세요.');
+      return;
+    }
+    const timestamp = Date.now().toString();
+    const today = new Date().toISOString().slice(0, 10).replaceAll('-', '.');
+    const record: CreatedSop = {
+      doc: {
+        id: `DRAFT-${timestamp.slice(-6)}`,
+        title: title.trim(),
+        area: documentType,
+        scope,
+        owner: owner.trim() || '미지정',
+        version: 'v0.1',
+        date: today,
+        status: submitForApproval ? '승인 요청' : '초안',
+        tone: submitForApproval ? 'review' : 'draft',
+      },
+      detail: {
+        organization: organization.trim(),
+        includesChildren,
+        purpose: purpose.trim(),
+        steps: cleanSteps,
+        author: `${owner.trim() || '미지정'} · 작성자`,
+        reviewer: reviewer.trim() || '검토자 미지정',
+        approver: approver.trim() || '승인자 미지정',
+        related: [],
+        revision: `v0.1 · ${submitForApproval ? '최초 작성 후 승인 요청' : '임시 저장'}`,
+      },
+    };
+    onSave(record);
+    setTitle(''); setDocumentType('작업 표준서'); setScope('S2'); setOrganization(''); setIncludesChildren(true); setPurpose(''); setSteps(['']); setReviewer(''); setApprover(''); setError('');
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-[#06181f]/50 p-3 backdrop-blur-sm md:p-6" role="presentation" onMouseDown={onClose}>
+      <section role="dialog" aria-modal="true" aria-labelledby="authoring-title" onMouseDown={(event) => event.stopPropagation()} className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-[0_30px_90px_rgba(3,20,28,.38)]">
+        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 md:px-7 md:py-5">
+          <div><div className="mb-1 flex items-center gap-2 text-xs font-semibold text-[#168b78]"><FilePlus2 className="size-4" /> SOP Authoring</div><h2 id="authoring-title" className="text-xl font-semibold text-slate-900">새 SOP 작성</h2><p className="mt-1 text-xs text-slate-500">적용 범위와 절차를 정의한 후 임시 저장하거나 승인을 요청하세요.</p></div>
+          <Button onClick={onClose} variant="ghost" size="icon" className="rounded-full" aria-label="작성 화면 닫기"><X className="size-5" /></Button>
+        </header>
+
+        <div className="overflow-y-auto px-5 py-5 md:px-7 md:py-6">
+          <div className="grid gap-7 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,.85fr)]">
+            <div className="space-y-7">
+              <section>
+                <SectionTitle number="01" title="기본 정보" />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="sm:col-span-2"><span className="mb-1.5 block text-xs font-semibold text-slate-600">SOP 제목 *</span><Input value={title} onChange={(event) => setTitle(event.target.value)} className="h-10" placeholder="예: PECVD 장비 Recipe 변경 관리" /></label>
+                  <label><span className="mb-1.5 block text-xs font-semibold text-slate-600">문서 유형</span><select value={documentType} onChange={(event) => setDocumentType(event.target.value)} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[#35d0ba] focus:ring-2 focus:ring-[#35d0ba]/20"><option>작업 표준서</option><option>이상 대응 절차</option><option>안전 절차</option><option>검사 기준서</option><option>관리 기준서</option></select></label>
+                  <label><span className="mb-1.5 block text-xs font-semibold text-slate-600">작성자</span><Input value={owner} onChange={(event) => setOwner(event.target.value)} className="h-10" /></label>
+                </div>
+              </section>
+
+              <section>
+                <SectionTitle number="02" title="목적 및 적용 기준" />
+                <Textarea value={purpose} onChange={(event) => setPurpose(event.target.value)} className="min-h-28 resize-y" placeholder="이 SOP가 필요한 이유와 달성해야 하는 기준을 작성하세요." />
+              </section>
+
+              <section>
+                <div className="mb-3 flex items-center justify-between"><SectionTitle number="03" title="표준 작업 절차" /><Button onClick={() => setSteps((current) => [...current, ''])} variant="outline" size="sm"><Plus className="size-3.5" /> 단계 추가</Button></div>
+                <div className="space-y-3">
+                  {steps.map((step, index) => (
+                    <div key={index} className="grid grid-cols-[30px_1fr_32px] items-start gap-2 rounded-xl bg-slate-50 p-3">
+                      <span className="grid size-7 place-items-center rounded-lg bg-[#102f3d] text-[11px] font-bold text-white">{index + 1}</span>
+                      <Textarea value={step} onChange={(event) => updateStep(index, event.target.value)} className="min-h-16 bg-white" placeholder={`${index + 1}단계 작업 내용과 확인 기준`} />
+                      <Button onClick={() => removeStep(index)} variant="ghost" size="icon" disabled={steps.length === 1} aria-label={`${index + 1}단계 삭제`}><Trash2 className="size-4 text-slate-400" /></Button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+
+            <div className="space-y-7">
+              <section>
+                <SectionTitle number="04" title="SOP 적용 범위" />
+                <div className="grid grid-cols-4 gap-2">
+                  {scopeLevels.map((item) => <button key={item.level} onClick={() => setScope(item.level)} aria-pressed={scope === item.level} className={`rounded-xl border px-2 py-3 text-center transition ${scope === item.level ? 'border-[#168b78] bg-[#e8f8f5] text-[#126758] shadow-[0_0_0_2px_rgba(53,208,186,.12)]' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}><strong className="block text-sm">{item.level}</strong><span className="mt-1 block text-[10px] leading-4">{item.title.split(' ')[0]}</span></button>)}
+                </div>
+                <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-500">{scopeLevels.find((item) => item.level === scope)?.description}</p>
+              </section>
+
+              <section>
+                <SectionTitle number="05" title="적용 조직" />
+                <label><span className="mb-1.5 block text-xs font-semibold text-slate-600">조직 경로 *</span><Input value={organization} onChange={(event) => setOrganization(event.target.value)} className="h-10" placeholder="예: 제조부문 > CVD 공정기술팀" /></label>
+                <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 p-3 text-xs text-slate-600"><input type="checkbox" checked={includesChildren} onChange={(event) => setIncludesChildren(event.target.checked)} className="size-4 accent-[#168b78]" /> 하위 조직까지 함께 적용</label>
+              </section>
+
+              <section>
+                <SectionTitle number="06" title="검토 및 승인" />
+                <div className="space-y-3"><label><span className="mb-1.5 block text-xs font-semibold text-slate-600">검토자</span><Input value={reviewer} onChange={(event) => setReviewer(event.target.value)} placeholder="이름 또는 조직" /></label><label><span className="mb-1.5 block text-xs font-semibold text-slate-600">승인자</span><Input value={approver} onChange={(event) => setApprover(event.target.value)} placeholder="이름 또는 직책" /></label></div>
+              </section>
+
+              <div className="rounded-2xl border border-[#35d0ba]/25 bg-[#f0fbf9] p-4 text-xs leading-5 text-slate-600"><strong className="block text-[#147b6a]">작성 결과</strong><span className="mt-1 block">저장하면 문서번호와 v0.1이 자동 생성되고 SOP 라이브러리에 표시됩니다.</span></div>
+            </div>
+          </div>
+          {error && <p role="alert" className="mt-5 rounded-xl bg-[#ffe9e5] px-4 py-3 text-sm font-medium text-[#b24f42]">{error}</p>}
+        </div>
+
+        <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end md:px-7">
+          <Button variant="outline" onClick={onClose}>취소</Button>
+          <Button variant="outline" onClick={() => save(false)}><Save className="size-4" /> 임시 저장</Button>
+          <Button className="bg-[#102f3d] text-white" onClick={() => save(true)}><Send className="size-4" /> 승인 요청</Button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function LibraryView({ items, details, onCreate }: { items: SopDocument[]; details: Record<string, SopDetail>; onCreate: () => void }) {
   const [search, setSearch] = useState('');
   const [scopeFilter, setScopeFilter] = useState('ALL');
   const [detailId, setDetailId] = useState<string | null>(null);
-  const selected = documents.find((doc) => doc.id === detailId) ?? null;
-  const detail = selected ? sopDetails[selected.id] : null;
-  const filtered = documents.filter((doc) => {
+  const selected = items.find((doc) => doc.id === detailId) ?? null;
+  const detail = selected ? details[selected.id] : null;
+  const filtered = items.filter((doc) => {
     const matchesScope = scopeFilter === 'ALL' || doc.scope === scopeFilter;
     const keyword = search.trim().toLowerCase();
-    const itemDetail = sopDetails[doc.id];
+    const itemDetail = details[doc.id];
     const matchesSearch = !keyword || [doc.id, doc.title, doc.area, itemDetail?.organization, itemDetail?.purpose].join(' ').toLowerCase().includes(keyword);
     return matchesScope && matchesSearch;
   });
@@ -643,6 +757,7 @@ function ScopeBadge({ level }: { level: string }) {
 
 function StatusBadge({ tone, children }: { tone: string; children: React.ReactNode }) {
   const styles: Record<string, string> = {
+    draft: 'border-0 bg-slate-100 text-slate-600',
     approved: 'border-0 bg-[#def7ef] text-[#147b6a]',
     review: 'border-0 bg-[#e9efff] text-[#4666b0]',
     training: 'border-0 bg-[#fff1dd] text-[#a45a08]',
