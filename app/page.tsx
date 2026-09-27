@@ -439,7 +439,7 @@ export default function Home() {
         ) : activeView === 'library' ? (
           <LibraryView items={allDocuments} details={allDetails} editableIds={createdSops.map((item) => item.doc.id)} onCreate={openNewSop} onEdit={(record) => { setEditingSop(record); setDraftOpen(true); }} onApprove={handleApproveSop} onDelete={(id) => void handleDeleteSop(id)} />
         ) : activeView === 'approval' ? (
-          <ApprovalView items={createdSops.filter((item) => item.doc.tone === 'review')} onApprove={handleApproveSop} onDelete={(id) => void handleDeleteSop(id)} />
+          <ApprovalView items={createdSops.filter((item) => item.doc.tone === 'review')} onEdit={(record) => { setEditingSop(record); setDraftOpen(true); }} onApprove={handleApproveSop} onDelete={(id) => void handleDeleteSop(id)} />
         ) : (
         <div className="mx-auto max-w-[1500px] p-5 md:p-8 lg:p-10">
           <section className="mb-7 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
@@ -758,7 +758,7 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
         area: documentType,
         scope,
         owner: owner.trim() || '미지정',
-        version: 'v0.1',
+        version: initialRecord?.doc.version ?? 'v0.1',
         date: today,
         status: submitForApproval ? '승인 요청' : '초안',
         tone: submitForApproval ? 'review' : 'draft',
@@ -784,7 +784,7 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
         reviewer: reviewer.trim() || '검토자 미지정',
         approver: approver.trim() || '승인자 미지정',
         related: [],
-        revision: `v0.1 · ${submitForApproval ? '최초 작성 후 승인 요청' : '임시 저장'}`,
+        revision: `${initialRecord?.doc.version ?? 'v0.1'} · ${initialRecord ? (submitForApproval ? '수정 후 재승인 요청' : '수정본 임시 저장') : (submitForApproval ? '최초 작성 후 승인 요청' : '임시 저장')}`,
         attachments: savedAttachments,
       },
     };
@@ -801,7 +801,7 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
     <div className="fixed inset-0 z-50 grid place-items-center bg-[#06181f]/50 p-3 backdrop-blur-sm md:p-6" role="presentation" onMouseDown={onClose}>
       <section role="dialog" aria-modal="true" aria-labelledby="authoring-title" onMouseDown={(event) => event.stopPropagation()} className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-[0_30px_90px_rgba(3,20,28,.38)]">
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 md:px-7 md:py-5">
-          <div><div className="mb-1 flex items-center gap-2 text-xs font-semibold text-[#168b78]"><FilePlus2 className="size-4" /> SOP Authoring</div><h2 id="authoring-title" className="text-xl font-semibold text-slate-900">{initialRecord ? '임시 저장 SOP 이어서 작성' : '새 SOP 작성'}</h2><p className="mt-1 text-xs text-slate-500">제목만 입력해도 임시 저장할 수 있으며, 승인 요청 시에는 필수 항목을 모두 확인합니다.</p></div>
+          <div><div className="mb-1 flex items-center gap-2 text-xs font-semibold text-[#168b78]"><FilePlus2 className="size-4" /> SOP Authoring</div><h2 id="authoring-title" className="text-xl font-semibold text-slate-900">{initialRecord ? (initialRecord.doc.tone === 'draft' ? '임시 저장 SOP 이어서 작성' : 'SOP 수정') : '새 SOP 작성'}</h2><p className="mt-1 text-xs text-slate-500">제목만 입력해도 임시 저장할 수 있으며, 승인 요청 시에는 필수 항목을 모두 확인합니다.</p></div>
           <Button onClick={onClose} variant="ghost" size="icon" className="rounded-full" aria-label="작성 화면 닫기"><X className="size-5" /></Button>
         </header>
 
@@ -985,7 +985,7 @@ function SopAuthoringDialog({ open, initialRecord, onClose, onSave }: { open: bo
   );
 }
 
-function ApprovalView({ items, onApprove, onDelete }: { items: CreatedSop[]; onApprove: (id: string) => void; onDelete: (id: string) => void }) {
+function ApprovalView({ items, onEdit, onApprove, onDelete }: { items: CreatedSop[]; onEdit: (record: CreatedSop) => void; onApprove: (id: string) => void; onDelete: (id: string) => void }) {
   return (
     <div className="mx-auto max-w-[1300px] p-5 md:p-8 lg:p-10">
       <section className="mb-6">
@@ -1015,7 +1015,7 @@ function ApprovalView({ items, onApprove, onDelete }: { items: CreatedSop[]; onA
                   <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:w-[420px]">
                     <div className="rounded-xl bg-slate-50 p-3 text-center"><span className="block text-[10px] text-slate-400">Workflow</span><strong className="mt-1 block text-sm text-slate-700">{detail.steps.length}개 노드</strong></div>
                     <div className="rounded-xl bg-[#f0fbf9] p-3 text-center"><span className="block text-[10px] text-[#168b78]">Agent 전환율</span><strong className="mt-1 block text-lg text-[#147b6a]">{getAgentConversion(detail) ?? 0}%</strong></div>
-                    <div className="col-span-2 flex gap-2 sm:col-span-1 sm:flex-col"><Button className="flex-1 bg-[#168b78] text-white hover:bg-[#147b6a]" onClick={() => { if (window.confirm(`'${doc.title}' SOP를 최종 승인하시겠습니까?`)) onApprove(doc.id); }}><CheckCircle2 className="size-4" /> 승인</Button><Button variant="outline" className="flex-1 border-[#ff7a66]/40 text-[#b24f42] hover:bg-[#fff5f3]" onClick={() => { if (window.confirm(`'${doc.title}' SOP를 삭제하시겠습니까? 삭제 후 복구할 수 없습니다.`)) onDelete(doc.id); }}><Trash2 className="size-4" /> 삭제</Button></div>
+                    <div className="col-span-2 flex flex-wrap gap-2 sm:col-span-1 sm:flex-col"><Button variant="outline" className="flex-1" onClick={() => onEdit({ doc, detail })}><FileText className="size-4" /> 수정</Button><Button className="flex-1 bg-[#168b78] text-white hover:bg-[#147b6a]" onClick={() => { if (window.confirm(`'${doc.title}' SOP를 최종 승인하시겠습니까?`)) onApprove(doc.id); }}><CheckCircle2 className="size-4" /> 승인</Button><Button variant="outline" className="flex-1 border-[#ff7a66]/40 text-[#b24f42] hover:bg-[#fff5f3]" onClick={() => { if (window.confirm(`'${doc.title}' SOP를 삭제하시겠습니까? 삭제 후 복구할 수 없습니다.`)) onDelete(doc.id); }}><Trash2 className="size-4" /> 삭제</Button></div>
                   </div>
                 </div>
               </CardContent>
@@ -1134,7 +1134,7 @@ function LibraryView({ items, details, editableIds, onCreate, onEdit, onApprove,
               </section>
               <div className="grid gap-6 lg:grid-cols-2"><section><SectionTitle number="04" title="책임 및 승인" /><div className="space-y-2 rounded-xl border border-slate-200 p-4"><Responsibility label="작성" value={detail.author} /><Responsibility label="검토" value={detail.reviewer} /><Responsibility label="승인" value={detail.approver} /></div></section><section><SectionTitle number="05" title="연관 문서 및 이력" /><div className="space-y-2 rounded-xl border border-slate-200 p-4">{detail.related.map((item) => <div key={item} className="flex items-center gap-2 text-xs text-slate-600"><Link2 className="size-3.5 text-[#168b78]" /><span>{item}</span></div>)}<div className="mt-3 flex items-start gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500"><History className="mt-0.5 size-3.5 text-[#168b78]" /><span>{detail.revision}</span></div></div></section></div>
             </div>
-            <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 md:px-6"><span className="text-xs text-slate-400">첨부 문서 {detail.attachments?.length ?? 0}개</span><div className="flex flex-wrap justify-end gap-2">{editableIds.includes(selected.id) && <Button variant="outline" className="border-[#ff7a66]/40 text-[#b24f42] hover:bg-[#fff5f3]" onClick={() => { if (window.confirm(`'${selected.title}' SOP를 삭제하시겠습니까? 삭제한 문서와 첨부 파일은 복구할 수 없습니다.`)) { setDetailId(null); onDelete(selected.id); } }}><Trash2 className="size-4" /> 삭제</Button>}{selected.tone === 'draft' && <Button variant="outline" onClick={() => { setDetailId(null); onEdit({ doc: selected, detail }); }}><FileText className="size-4" /> 이어서 작성</Button>}{editableIds.includes(selected.id) && selected.tone === 'review' && <Button className="bg-[#168b78] text-white hover:bg-[#147b6a]" onClick={() => { if (window.confirm(`'${selected.title}' SOP를 최종 승인하시겠습니까?`)) { setDetailId(null); onApprove(selected.id); } }}><CheckCircle2 className="size-4" /> 승인</Button>}<Button variant="outline">개정 이력</Button><Button onClick={() => setDetailId(null)} className="bg-[#102f3d] text-white">닫기</Button></div></footer>
+            <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 md:px-6"><span className="text-xs text-slate-400">첨부 문서 {detail.attachments?.length ?? 0}개</span><div className="flex flex-wrap justify-end gap-2">{editableIds.includes(selected.id) && <Button variant="outline" className="border-[#ff7a66]/40 text-[#b24f42] hover:bg-[#fff5f3]" onClick={() => { if (window.confirm(`'${selected.title}' SOP를 삭제하시겠습니까? 삭제한 문서와 첨부 파일은 복구할 수 없습니다.`)) { setDetailId(null); onDelete(selected.id); } }}><Trash2 className="size-4" /> 삭제</Button>}{editableIds.includes(selected.id) && <Button variant="outline" onClick={() => { setDetailId(null); onEdit({ doc: selected, detail }); }}><FileText className="size-4" /> {selected.tone === 'draft' ? '이어서 작성' : '수정'}</Button>}{editableIds.includes(selected.id) && selected.tone === 'review' && <Button className="bg-[#168b78] text-white hover:bg-[#147b6a]" onClick={() => { if (window.confirm(`'${selected.title}' SOP를 최종 승인하시겠습니까?`)) { setDetailId(null); onApprove(selected.id); } }}><CheckCircle2 className="size-4" /> 승인</Button>}<Button variant="outline">개정 이력</Button><Button onClick={() => setDetailId(null)} className="bg-[#102f3d] text-white">닫기</Button></div></footer>
           </section>
         </div>
       )}
