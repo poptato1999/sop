@@ -11,6 +11,7 @@ import {
   FileClock,
   FilePlus2,
   FileText,
+  Eye,
   GitBranch,
   History,
   LayoutDashboard,
@@ -24,6 +25,7 @@ import {
   Sparkles,
   UserCheck,
   UsersRound,
+  X,
 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -405,9 +407,9 @@ export default function Home() {
 function LibraryView({ onCreate }: { onCreate: () => void }) {
   const [search, setSearch] = useState('');
   const [scopeFilter, setScopeFilter] = useState('ALL');
-  const [selectedId, setSelectedId] = useState(documents[0].id);
-  const selected = documents.find((doc) => doc.id === selectedId) ?? documents[0];
-  const detail = sopDetails[selected.id];
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const selected = documents.find((doc) => doc.id === detailId) ?? null;
+  const detail = selected ? sopDetails[selected.id] : null;
   const filtered = documents.filter((doc) => {
     const matchesScope = scopeFilter === 'ALL' || doc.scope === scopeFilter;
     const keyword = search.trim().toLowerCase();
@@ -444,93 +446,47 @@ function LibraryView({ onCreate }: { onCreate: () => void }) {
         </CardContent>
       </Card>
 
-      <div className="grid items-start gap-5 xl:grid-cols-[390px_minmax(0,1fr)]">
-        <Card className="border-0 bg-white py-0 shadow-[0_8px_30px_rgba(23,42,54,.06)] ring-slate-200/70">
-          <CardHeader className="border-b border-slate-100 p-4">
-            <CardTitle className="text-sm font-semibold">문서 목록</CardTitle>
-          </CardHeader>
-          <CardContent className="p-2">
-            <div className="space-y-1">
+      <Card className="border-0 bg-white py-0 shadow-[0_8px_30px_rgba(23,42,54,.06)] ring-slate-200/70">
+        <CardHeader className="border-b border-slate-100 p-5 md:flex md:flex-row md:items-center md:justify-between">
+          <div><CardTitle className="text-base font-semibold">문서 목록</CardTitle><p className="mt-1 text-xs text-slate-400">행을 더블클릭하면 최신 승인본이 열립니다.</p></div>
+          <span className="mt-2 text-xs text-slate-400 md:mt-0">최근 업데이트 순</span>
+        </CardHeader>
+        <CardContent className="overflow-x-auto p-0">
+          <table className="w-full min-w-[920px] text-left">
+            <thead className="border-b border-slate-100 bg-slate-50/70 text-[11px] uppercase tracking-wider text-slate-400">
+              <tr><th className="px-5 py-3.5 font-semibold">문서</th><th className="px-4 py-3.5 font-semibold">적용범위</th><th className="px-4 py-3.5 font-semibold">공정·분류</th><th className="px-4 py-3.5 font-semibold">담당자</th><th className="px-4 py-3.5 font-semibold">버전</th><th className="px-4 py-3.5 font-semibold">수정일</th><th className="px-4 py-3.5 font-semibold">상태</th><th className="w-28 px-4 py-3.5" /></tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
               {filtered.map((doc) => (
-                <button
-                  key={doc.id}
-                  onClick={() => setSelectedId(doc.id)}
-                  aria-pressed={selectedId === doc.id}
-                  className={`w-full rounded-xl p-3.5 text-left transition ${selectedId === doc.id ? 'bg-[#e9f8f5] ring-1 ring-[#35d0ba]/40' : 'hover:bg-slate-50'}`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg ${selectedId === doc.id ? 'bg-[#35d0ba] text-[#08232c]' : 'bg-slate-100 text-slate-400'}`}><FileText className="size-4" /></div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2"><span className="font-mono text-[10px] text-slate-400">{doc.id}</span><ScopeBadge level={doc.scope} /></div>
-                      <p className="mt-1 line-clamp-2 text-sm font-semibold leading-5 text-slate-800">{doc.title}</p>
-                      <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400"><span>{doc.area} · {doc.owner}</span><span>{doc.version}</span></div>
-                    </div>
-                  </div>
-                </button>
+                <tr key={doc.id} onDoubleClick={() => setDetailId(doc.id)} className="group cursor-default select-none transition hover:bg-[#f0fbf9]">
+                  <td className="px-5 py-4"><div className="flex items-center gap-3"><div className="grid size-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-400 group-hover:bg-[#dff7f2] group-hover:text-[#168b78]"><FileText className="size-4" /></div><div><p className="font-medium text-slate-800 group-hover:text-[#147b6a]">{doc.title}</p><p className="mt-1 font-mono text-[10px] text-slate-400">{doc.id}</p></div></div></td>
+                  <td className="px-4 py-4"><ScopeBadge level={doc.scope} /></td><td className="px-4 py-4 text-sm text-slate-600">{doc.area}</td><td className="px-4 py-4 text-sm text-slate-600">{doc.owner}</td><td className="px-4 py-4 text-xs font-semibold text-slate-600">{doc.version}</td><td className="px-4 py-4 text-xs text-slate-500">{doc.date}</td><td className="px-4 py-4"><StatusBadge tone={doc.tone}>{doc.status}</StatusBadge></td>
+                  <td className="px-4 py-4"><Button onClick={() => setDetailId(doc.id)} variant="ghost" size="sm" className="text-[#168b78]"><Eye className="size-3.5" /> 상세 보기</Button></td>
+                </tr>
               ))}
-              {filtered.length === 0 && <div className="px-4 py-12 text-center text-sm text-slate-400">조건에 맞는 SOP가 없습니다.</div>}
+              {filtered.length === 0 && <tr><td colSpan={8} className="px-5 py-14 text-center text-sm text-slate-400">조건에 맞는 SOP가 없습니다.</td></tr>}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+
+      {selected && detail && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[#06181f]/45 p-3 backdrop-blur-sm md:p-6" role="presentation" onMouseDown={() => setDetailId(null)}>
+          <section role="dialog" aria-modal="true" aria-labelledby="sop-detail-title" onMouseDown={(event) => event.stopPropagation()} className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-[0_30px_90px_rgba(3,20,28,.35)]">
+            <header className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 p-5 md:p-6">
+              <div><div className="mb-2 flex flex-wrap items-center gap-2"><ScopeBadge level={selected.scope} /><StatusBadge tone={selected.tone}>{selected.status}</StatusBadge><span className="font-mono text-xs text-slate-400">{selected.id}</span></div><h2 id="sop-detail-title" className="text-xl font-semibold tracking-tight text-slate-900 md:text-2xl">{selected.title}</h2><p className="mt-2 text-sm text-slate-500">최신 승인본 {selected.version} · 시행일 {selected.date}</p></div>
+              <Button onClick={() => setDetailId(null)} variant="ghost" size="icon" className="shrink-0 rounded-full" aria-label="상세 화면 닫기"><X className="size-5" /></Button>
+            </header>
+            <div className="overflow-y-auto p-5 md:p-6">
+              <section className="mb-6 grid gap-3 rounded-2xl border border-[#35d0ba]/25 bg-[#f0fbf9] p-4 md:grid-cols-[1fr_auto] md:items-center"><div><div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[#147b6a]"><Building2 className="size-4" /> 적용 조직</div><p className="text-sm font-semibold text-slate-800">{detail.organization}</p><p className="mt-1 text-xs text-slate-500">{detail.includesChildren ? '해당 조직과 모든 하위 조직에 적용' : '지정된 조직·대상에만 적용'}</p></div><div className="rounded-xl bg-white px-4 py-3 text-center shadow-sm ring-1 ring-[#35d0ba]/20"><span className="block text-[10px] text-slate-400">SOP 적용 범위</span><strong className="mt-1 block text-xl text-[#147b6a]">{selected.scope}</strong></div></section>
+              <section className="mb-7"><SectionTitle number="01" title="목적 및 적용 기준" /><p className="text-sm leading-7 text-slate-600">{detail.purpose}</p></section>
+              <section className="mb-7"><SectionTitle number="02" title="표준 작업 절차" /><ol className="space-y-3">{detail.steps.map((step, index) => <li key={step} className="grid grid-cols-[30px_1fr] gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600"><span className="grid size-7 place-items-center rounded-lg bg-[#102f3d] text-[11px] font-bold text-white">{index + 1}</span><span>{step}</span></li>)}</ol></section>
+              <div className="grid gap-6 lg:grid-cols-2"><section><SectionTitle number="03" title="책임 및 승인" /><div className="space-y-2 rounded-xl border border-slate-200 p-4"><Responsibility label="작성" value={detail.author} /><Responsibility label="검토" value={detail.reviewer} /><Responsibility label="승인" value={detail.approver} /></div></section><section><SectionTitle number="04" title="연관 문서 및 이력" /><div className="space-y-2 rounded-xl border border-slate-200 p-4">{detail.related.map((item) => <div key={item} className="flex items-center gap-2 text-xs text-slate-600"><Link2 className="size-3.5 text-[#168b78]" /><span>{item}</span></div>)}<div className="mt-3 flex items-start gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500"><History className="mt-0.5 size-3.5 text-[#168b78]" /><span>{detail.revision}</span></div></div></section></div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 bg-white py-0 shadow-[0_8px_30px_rgba(23,42,54,.06)] ring-slate-200/70">
-          <CardHeader className="border-b border-slate-100 p-5 md:p-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <div className="mb-2 flex flex-wrap items-center gap-2"><ScopeBadge level={selected.scope} /><StatusBadge tone={selected.tone}>{selected.status}</StatusBadge><span className="font-mono text-xs text-slate-400">{selected.id}</span></div>
-                <CardTitle className="text-xl font-semibold tracking-tight md:text-2xl">{selected.title}</CardTitle>
-                <p className="mt-2 text-sm text-slate-500">최신 승인본 {selected.version} · 시행일 {selected.date}</p>
-              </div>
-              <div className="flex gap-2"><Button variant="outline">개정 이력</Button><Button className="bg-[#102f3d] text-white">PDF 보기</Button></div>
-            </div>
-          </CardHeader>
-
-          <CardContent className="p-5 md:p-6">
-            <section className="mb-6 grid gap-3 rounded-2xl border border-[#35d0ba]/25 bg-[#f0fbf9] p-4 md:grid-cols-[1fr_auto] md:items-center">
-              <div>
-                <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[#147b6a]"><Building2 className="size-4" /> 적용 조직</div>
-                <p className="text-sm font-semibold text-slate-800">{detail.organization}</p>
-                <p className="mt-1 text-xs text-slate-500">{detail.includesChildren ? '해당 조직과 모든 하위 조직에 적용' : '지정된 조직·대상에만 적용'}</p>
-              </div>
-              <div className="rounded-xl bg-white px-4 py-3 text-center shadow-sm ring-1 ring-[#35d0ba]/20"><span className="block text-[10px] text-slate-400">SOP 적용 범위</span><strong className="mt-1 block text-xl text-[#147b6a]">{selected.scope}</strong></div>
-            </section>
-
-            <section className="mb-7">
-              <SectionTitle number="01" title="목적 및 적용 기준" />
-              <p className="text-sm leading-7 text-slate-600">{detail.purpose}</p>
-            </section>
-
-            <section className="mb-7">
-              <SectionTitle number="02" title="표준 작업 절차" />
-              <ol className="space-y-3">
-                {detail.steps.map((step, index) => (
-                  <li key={step} className="grid grid-cols-[30px_1fr] gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
-                    <span className="grid size-7 place-items-center rounded-lg bg-[#102f3d] text-[11px] font-bold text-white">{index + 1}</span><span>{step}</span>
-                  </li>
-                ))}
-              </ol>
-            </section>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              <section>
-                <SectionTitle number="03" title="책임 및 승인" />
-                <div className="space-y-2 rounded-xl border border-slate-200 p-4">
-                  <Responsibility label="작성" value={detail.author} />
-                  <Responsibility label="검토" value={detail.reviewer} />
-                  <Responsibility label="승인" value={detail.approver} />
-                </div>
-              </section>
-              <section>
-                <SectionTitle number="04" title="연관 문서 및 이력" />
-                <div className="space-y-2 rounded-xl border border-slate-200 p-4">
-                  {detail.related.map((item) => <div key={item} className="flex items-center gap-2 text-xs text-slate-600"><Link2 className="size-3.5 text-[#168b78]" /><span>{item}</span></div>)}
-                  <div className="mt-3 flex items-start gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500"><History className="mt-0.5 size-3.5 text-[#168b78]" /><span>{detail.revision}</span></div>
-                </div>
-              </section>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            <footer className="flex shrink-0 justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 md:px-6"><Button variant="outline">개정 이력</Button><Button className="bg-[#102f3d] text-white">PDF 보기</Button></footer>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
